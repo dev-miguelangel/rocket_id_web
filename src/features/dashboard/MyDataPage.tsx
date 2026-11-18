@@ -43,20 +43,20 @@ export function MyDataPage() {
 
   return (
     <div className="space-y-4">
-      <section className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-4">
+      <section className="flex items-center gap-4 rounded-2xl border border-line bg-card p-4">
         {user?.photoURL && (
           <img src={user.photoURL} alt="" referrerPolicy="no-referrer" className="size-14 rounded-full" />
         )}
         <div className="min-w-0">
-          <p className="truncate font-semibold text-zinc-900">{profile?.displayName ?? user?.displayName}</p>
-          <p className="truncate text-sm text-zinc-500">{profile?.email ?? user?.email}</p>
-          {memberSince && <p className="text-xs text-zinc-400">Miembro desde {memberSince}</p>}
+          <p className="truncate font-semibold text-fg">{profile?.displayName ?? user?.displayName}</p>
+          <p className="truncate text-sm text-muted">{profile?.email ?? user?.email}</p>
+          {memberSince && <p className="text-xs text-subtle">Miembro desde {memberSince}</p>}
         </div>
       </section>
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-4">
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-line bg-card p-4">
         <label className="block">
-          <span className="text-sm font-medium text-zinc-700">Teléfono</span>
+          <span className="text-sm font-medium text-fg-soft">Teléfono</span>
           <input
             type="tel"
             inputMode="tel"
@@ -64,17 +64,17 @@ export function MyDataPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+56 9 1234 5678"
-            className="mt-1 h-12 w-full rounded-xl border border-zinc-300 px-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-1 h-12 w-full rounded-xl border border-line-strong bg-card px-3 text-base text-fg outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
         <label className="block">
-          <span className="text-sm font-medium text-zinc-700">Sobre mí</span>
+          <span className="text-sm font-medium text-fg-soft">Sobre mí</span>
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             rows={3}
             maxLength={280}
-            className="mt-1 w-full rounded-xl border border-zinc-300 p-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-1 w-full rounded-xl border border-line-strong bg-card p-3 text-base text-fg outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
         <button
@@ -85,7 +85,7 @@ export function MyDataPage() {
           {status === 'saving' ? 'Guardando…' : status === 'saved' ? '✓ Guardado' : 'Guardar cambios'}
         </button>
         {status === 'error' && (
-          <p role="alert" className="text-center text-sm text-red-600">
+          <p role="alert" className="text-center text-sm text-red-600 dark:text-red-400">
             No se pudo guardar. Inténtalo de nuevo.
           </p>
         )}

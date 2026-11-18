@@ -10,6 +10,19 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="rocketId" />
     <title>rocketId</title>
+    <script>
+      // Aplica el tema antes de pintar para evitar el destello claro
+      (function () {
+        var pref = null
+        try { pref = localStorage.getItem('rocketid-theme') } catch (e) {}
+        var dark = pref === 'dark' || (pref !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) {
+          document.documentElement.classList.add('dark')
+          document.documentElement.style.colorScheme = 'dark'
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#09090B')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

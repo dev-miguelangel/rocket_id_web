@@ -1,11 +1,49 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tokens semánticos: cambian entre claro y oscuro */
+:root {
+  --surface: #fafafa;
+  --card: #ffffff;
+  --line: #e4e4e7;
+  --line-strong: #d4d4d8;
+  --fg: #18181b;
+  --fg-soft: #3f3f46;
+  --muted: #71717a;
+  --subtle: #a1a1aa;
+  --primary-text: #0d9488;
+}
+
+.dark {
+  --surface: #09090b;
+  --card: #18181b;
+  --line: #27272a;
+  --line-strong: #3f3f46;
+  --fg: #fafafa;
+  --fg-soft: #d4d4d8;
+  --muted: #a1a1aa;
+  --subtle: #71717a;
+  --primary-text: #2dd4bf;
+}
+
 @theme {
   --color-primary: #0d9488;
   --color-primary-dark: #0f766e;
   --color-accent: #10b981;
-  --color-surface: #fafafa;
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-soft: var(--fg-soft);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-primary-text: var(--primary-text);
 }
 
 html,
@@ -15,8 +53,8 @@ body,
 }
 
 body {
-  background: var(--color-surface);
-  color: #18181b;
+  background: var(--surface);
+  color: var(--fg);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
 }

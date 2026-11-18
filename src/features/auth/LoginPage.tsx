@@ -17,20 +17,20 @@ export function LoginPage() {
     <main className="pt-safe pb-safe flex min-h-dvh flex-col bg-surface px-6">
       <section className="flex flex-1 flex-col items-center justify-center text-center">
         <Logo className="size-20 shadow-lg shadow-primary/30 rounded-2xl" />
-        <h1 className="mt-6 text-3xl font-bold tracking-tight text-zinc-900">rocketId</h1>
-        <p className="mt-2 max-w-xs text-base text-zinc-500">
+        <h1 className="mt-6 text-3xl font-bold tracking-tight text-fg">rocketId</h1>
+        <p className="mt-2 max-w-xs text-base text-muted">
           Inicia sesión para acceder a tu cuenta.
         </p>
       </section>
 
       <section className="mx-auto w-full max-w-sm pb-10">
         {!isFirebaseConfigured && (
-          <p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
             Falta configurar Firebase. Copia <code>.env.example</code> a <code>.env.local</code>.
           </p>
         )}
         {error && (
-          <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
             {error}
           </p>
         )}
@@ -38,16 +38,16 @@ export function LoginPage() {
           type="button"
           onClick={handleLogin}
           disabled={loading}
-          className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl border border-zinc-200 bg-white text-base font-semibold text-zinc-800 shadow-sm transition active:scale-[0.98] disabled:opacity-60"
+          className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl border border-line bg-card text-base font-semibold text-fg shadow-sm transition active:scale-[0.98] disabled:opacity-60"
         >
           {loading ? (
-            <span className="size-5 animate-spin rounded-full border-2 border-zinc-300 border-t-primary" />
+            <span className="size-5 animate-spin rounded-full border-2 border-line-strong border-t-primary" />
           ) : (
             <GoogleIcon />
           )}
           Continuar con Google
         </button>
-        <p className="mt-4 text-center text-xs text-zinc-400">
+        <p className="mt-4 text-center text-xs text-subtle">
           Al continuar aceptas los términos de uso y la política de privacidad.
         </p>
       </section>

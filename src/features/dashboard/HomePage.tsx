@@ -24,10 +24,10 @@ function ShortcutCard({ to, title, subtitle }: { to: string; title: string; subt
   return (
     <Link
       to={to}
-      className="flex min-h-28 flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition active:scale-[0.98]"
+      className="flex min-h-28 flex-col justify-between rounded-2xl border border-line bg-card p-4 shadow-sm transition active:scale-[0.98]"
     >
-      <span className="text-base font-semibold text-zinc-900">{title}</span>
-      <span className="text-sm text-zinc-500">{subtitle}</span>
+      <span className="text-base font-semibold text-fg">{title}</span>
+      <span className="text-sm text-muted">{subtitle}</span>
     </Link>
   )
 }

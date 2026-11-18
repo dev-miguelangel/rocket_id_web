@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router'
 import './index.css'
 import { UpdatePrompt } from './components/UpdatePrompt'
+import { useTheme } from './lib/theme'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { LoginPage } from './features/auth/LoginPage'
 import { ProtectedRoute, PublicOnlyRoute } from './features/auth/RouteGuards'
@@ -32,8 +33,15 @@ const router = createBrowserRouter([
   { path: '*', element: <Navigate to="/" replace /> },
 ])
 
+/** Mantiene el tema aplicado y escucha cambios del sistema */
+function ThemeSync() {
+  useTheme()
+  return null
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <ThemeSync />
     <AuthProvider>
       <RouterProvider router={router} />
       <UpdatePrompt />
