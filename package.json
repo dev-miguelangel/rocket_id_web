@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "mock:seed": "node scripts/mock/seed.mjs",
+    "mock:list": "node scripts/mock/list.mjs",
+    "mock:purge": "node scripts/mock/purge.mjs"
   },
   "dependencies": {
     "firebase": "^13.4.0",
@@ -21,6 +24,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "firebase-admin": "^14.5.1",
     "oxlint": "^1.90.0",
     "tailwindcss": "^4.3.5",
     "typescript": "~7.0.2",

@@ -15,6 +15,8 @@ export interface PublicProfile {
   displayName: string
   photoURL: string | null
   skills: SkillsData
+  /** Usuario ficticio creado por scripts/mock (se purga con npm run mock:purge) */
+  isMock: boolean
 }
 
 const publicRef = (uid: string) => doc(db, 'publicProfiles', uid)
@@ -97,6 +99,7 @@ function parsePublic(uid: string, raw: Record<string, unknown>): PublicProfile {
     displayName: String(raw.displayName ?? ''),
     photoURL: typeof raw.photoURL === 'string' ? raw.photoURL : null,
     skills: parseSkills(raw.skills as Record<string, unknown> | undefined),
+    isMock: !!(raw._mock as { isMock?: boolean } | undefined)?.isMock,
   }
 }
 

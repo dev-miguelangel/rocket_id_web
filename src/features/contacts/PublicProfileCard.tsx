@@ -25,6 +25,11 @@ export function PublicProfileCard({ result, maxCerts = 3, action }: Props) {
         <Avatar name={p.displayName} photoURL={p.photoURL} className="size-16 text-xl" />
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-lg font-bold text-fg">{p.displayName || 'Sin nombre'}</h3>
+          {p.isMock && (
+            <span className="mb-0.5 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
+              🧪 Perfil de prueba
+            </span>
+          )}
           <p className="font-mono text-sm font-bold tracking-wider text-primary-text">🚀 {p.rocketId}</p>
           {certs.length > 0 && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">

@@ -38,3 +38,12 @@ src/features/dashboard/      Layout (top bar + bottom nav), Inicio, Mis datos, E
 src/components/              Logo, Splash, aviso de actualización PWA
 firestore.rules              cada usuario solo accede a users/{suUid}
 ```
+
+## Datos de prueba
+
+Usuarios ficticios para probar Cordada: ver [`scripts/mock/README.md`](scripts/mock/README.md).
+
+```bash
+npm run mock:seed -- --yes    # crear
+npm run mock:purge -- --yes   # eliminar todo lo mock
+```

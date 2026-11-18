@@ -8,3 +8,7 @@ dev-dist
 firebase-debug.log
 .env*
 !.env.example
+
+# Claves de cuenta de servicio (nunca al repo)
+*service-account*.json
+*-firebase-adminsdk-*.json
