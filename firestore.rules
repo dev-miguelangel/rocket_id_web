@@ -1,14 +1,53 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cada usuario solo puede leer y escribir su propio documento
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Campo opcional: si viene, debe ser string con largo máximo
+    function optStr(data, key, max) {
+      return !(key in data) || (data[key] is string && data[key].size() <= max);
+    }
+
+    // Perfil e identificación: users/{uid}
     match /users/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(
-          ['displayName', 'email', 'photoURL', 'phone', 'bio', 'createdAt', 'lastLoginAt']);
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly([
+          'displayName', 'email', 'photoURL', 'createdAt', 'lastLoginAt', 'updatedAt',
+          'fullName', 'docType', 'docNumber', 'birthDate', 'phone', 'contactEmail',
+          'bio' // legado del primer MVP
+        ])
+        && optStr(request.resource.data, 'fullName', 120)
+        && optStr(request.resource.data, 'docType', 20)
+        && optStr(request.resource.data, 'docNumber', 30)
+        && optStr(request.resource.data, 'birthDate', 10)
+        && optStr(request.resource.data, 'phone', 20)
+        && optStr(request.resource.data, 'contactEmail', 120);
       allow delete: if false;
+
+      // Ficha de emergencia (datos sensibles de salud): users/{uid}/private/emergency
+      match /private/{docId} {
+        allow read: if isOwner(uid) && docId == 'emergency';
+        allow create, update: if isOwner(uid) && docId == 'emergency'
+          && request.resource.data.keys().hasOnly([
+            'emergencyName', 'emergencyRelationship', 'emergencyPhone',
+            'insuranceSystem', 'insuranceDetail', 'bloodType',
+            'allergies', 'conditions', 'medications', 'updatedAt'
+          ])
+          && optStr(request.resource.data, 'emergencyName', 120)
+          && optStr(request.resource.data, 'emergencyRelationship', 60)
+          && optStr(request.resource.data, 'emergencyPhone', 20)
+          && optStr(request.resource.data, 'insuranceSystem', 20)
+          && optStr(request.resource.data, 'insuranceDetail', 120)
+          && optStr(request.resource.data, 'bloodType', 10)
+          && optStr(request.resource.data, 'allergies', 1000)
+          && optStr(request.resource.data, 'conditions', 1000)
+          && optStr(request.resource.data, 'medications', 1000);
+        allow delete: if false;
+      }
     }
 
     // Todo lo demás denegado por defecto
