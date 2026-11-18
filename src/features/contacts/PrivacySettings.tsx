@@ -1,5 +1,6 @@
 import { doc, onSnapshot } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
+import { Switch } from '../../components/form'
 import { db } from '../../lib/firebase'
 import { useAuth } from '../auth/AuthProvider'
 import { setExactOnly } from './publicProfile'
@@ -34,27 +35,17 @@ export function PrivacySettings() {
             <p id="exact-only-label" className="font-medium text-fg">
               Solo aparecer en búsquedas exactas
             </p>
-            <p className="mt-0.5 text-xs text-muted">
+            <p className="mt-0.5 text-sm text-muted">
               {on
                 ? 'Solo te encuentran con tu correo exacto, tu rocketId o tu enlace.'
                 : 'También apareces cuando alguien escribe tu nombre o parte de tu rocketId.'}
             </p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={!!on}
-            aria-labelledby="exact-only-label"
-            disabled={on === null || busy}
-            onClick={toggle}
-            className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-60 ${on ? 'bg-primary' : 'bg-line-strong'}`}
-          >
-            <span className={`absolute top-1 left-1 size-6 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : ''}`} />
-          </button>
+          <Switch checked={!!on} onChange={toggle} labelledBy="exact-only-label" disabled={on === null || busy} />
         </div>
       </div>
 
-      <div className="space-y-2 rounded-2xl border border-line bg-card p-4 text-sm">
+      <div className="max-w-prose space-y-2 rounded-2xl border border-line bg-card p-4 text-base">
         <p className="font-medium text-fg">👁️ Lo que ven otras personas</p>
         <p className="text-muted">Nombre, foto, rocketId y tus conocimientos y certificaciones.</p>
         <p className="text-muted">Quien tenga tu enlace o tu rocketId puede ver este perfil, incluso sin tener cuenta en rocketId.</p>

@@ -104,7 +104,7 @@ export function ProfileSheet({ uid, inCordada, onClose, onToast }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="h-10 w-full rounded-lg text-sm font-medium text-red-600 active:bg-red-50 dark:text-red-400 dark:active:bg-red-500/10"
+        className="h-11 w-full rounded-lg text-sm font-medium text-red-600 active:bg-red-50 dark:text-red-400 dark:active:bg-red-500/10"
       >
         Quitar de mi cordada
       </button>

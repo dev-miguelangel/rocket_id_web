@@ -11,7 +11,7 @@ export function HomePage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-3xl bg-gradient-to-br from-primary to-accent p-5 text-white shadow-lg shadow-primary/20">
+      <section className="rounded-3xl bg-gradient-to-br from-primary-dark to-primary p-5 text-white shadow-lg shadow-primary/20">
         <p className="text-sm opacity-90">Bienvenido de vuelta</p>
         <h2 className="mt-1 text-2xl font-bold">Hola, {name} 👋</h2>
         <div className="mt-4 flex items-center justify-between gap-3">

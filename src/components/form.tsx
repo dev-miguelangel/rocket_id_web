@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react'
 
 export const inputClass =
-  'mt-1 h-12 w-full rounded-xl border border-line-strong bg-card px-3 text-base text-fg outline-none placeholder:text-subtle focus:border-primary focus:ring-2 focus:ring-primary/20 aria-invalid:border-red-500 aria-invalid:ring-red-500/20'
+  'mt-1 h-12 w-full rounded-xl border border-field bg-card px-3 text-base text-fg outline-none placeholder:text-subtle focus:border-primary focus:ring-2 focus:ring-primary/20 aria-invalid:border-red-500 aria-invalid:ring-red-500/20'
 
 export const dateInputClass = `${inputClass} date-input`
 
@@ -34,7 +34,14 @@ export function Field({ label, hint, error, success, children }: FieldProps) {
           id={descId}
           className={`mt-1 text-xs ${error ? 'text-red-600 dark:text-red-400' : success ? 'font-medium text-emerald-700 dark:text-emerald-400' : 'text-muted'}`}
         >
-          {error ?? success ?? hint}
+          {error ? (
+            <>
+              <span aria-hidden="true">⚠️ </span>
+              {error}
+            </>
+          ) : (
+            (success ?? hint)
+          )}
         </p>
       )}
     </div>
@@ -90,7 +97,7 @@ export function Segmented<T extends string>({ label, value, options, onChange, e
               role="radio"
               aria-checked={active}
               onClick={() => onChange(o.value)}
-              className={`h-10 truncate rounded-lg px-2 text-sm font-medium transition ${
+              className={`h-11 truncate rounded-lg px-2 text-sm font-medium transition ${
                 active ? 'bg-card text-primary-text shadow-sm ring-1 ring-line' : 'text-muted active:bg-line/60'
               }`}
             >
@@ -99,7 +106,38 @@ export function Segmented<T extends string>({ label, value, options, onChange, e
           )
         })}
       </div>
-      {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && (
+        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+          <span aria-hidden="true">⚠️ </span>
+          {error}
+        </p>
+      )}
     </div>
+  )
+}
+
+interface SwitchProps {
+  checked: boolean
+  onChange: () => void
+  labelledBy: string
+  disabled?: boolean
+}
+
+/** Interruptor con área táctil de 44×60 px y pista apagada con contraste ≥ 3:1 */
+export function Switch({ checked, onChange, labelledBy, disabled }: SwitchProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-labelledby={labelledBy}
+      disabled={disabled}
+      onClick={onChange}
+      className="-my-1.5 -mr-1 flex h-11 w-16 shrink-0 items-center justify-center rounded-full disabled:opacity-50"
+    >
+      <span className={`relative h-8 w-14 rounded-full transition-colors ${checked ? 'bg-primary' : 'bg-zinc-500'}`}>
+        <span className={`absolute top-1 left-1 size-6 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : ''}`} />
+      </span>
+    </button>
   )
 }

@@ -158,16 +158,18 @@ export function ContactsPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar"
-              className="h-11 w-full rounded-xl bg-line/70 pr-9 pl-10 text-base text-fg outline-none placeholder:text-muted focus:ring-2 focus:ring-primary/30 [&::-webkit-search-cancel-button]:hidden"
+              className="h-11 w-full rounded-xl border border-field bg-card pr-11 pl-10 text-base text-fg outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 [&::-webkit-search-cancel-button]:hidden"
             />
             {q && (
               <button
                 type="button"
                 onClick={() => setQ('')}
                 aria-label="Borrar búsqueda"
-                className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full bg-muted/60 text-xs text-white"
+                className="absolute top-1/2 right-0 flex size-11 -translate-y-1/2 items-center justify-center"
               >
-                ✕
+                <span className="flex size-6 items-center justify-center rounded-full bg-muted/70 text-xs text-white" aria-hidden="true">
+                  ✕
+                </span>
               </button>
             )}
           </div>

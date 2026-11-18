@@ -72,7 +72,7 @@ export function SkillsReadSection({
           type="button"
           onClick={onEdit}
           aria-label={`Editar ${SKILLS_TITLE}`}
-          className="-my-2 h-10 rounded-lg px-2 text-base font-medium text-primary-text active:opacity-60"
+          className="-my-2.5 h-11 rounded-lg px-3 text-base font-medium text-primary-text active:opacity-60"
         >
           Editar
         </button>
@@ -326,10 +326,10 @@ function CertCard({ cert, verification, wasVerified, errors = {}, open, onToggle
               )}
             </Field>
             {cat && !cert.name && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-2 flex flex-wrap gap-2">
                 {cat.suggestions.map((s) => (
                   <button key={s} type="button" onClick={() => onChange({ name: s })}
-                    className="min-h-9 rounded-full bg-surface px-3 py-1.5 text-left text-xs font-medium text-fg-soft ring-1 ring-line active:bg-line">
+                    className="min-h-11 rounded-full bg-surface px-3.5 py-2 text-left text-sm font-medium text-fg-soft ring-1 ring-field active:bg-line">
                     {s}
                   </button>
                 ))}

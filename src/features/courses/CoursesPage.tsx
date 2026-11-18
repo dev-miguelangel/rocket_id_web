@@ -126,7 +126,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`h-10 shrink-0 snap-start rounded-full border px-4 text-sm font-medium whitespace-nowrap transition active:scale-[0.97] ${
+      className={`h-11 shrink-0 snap-start rounded-full border px-4 text-sm font-medium whitespace-nowrap transition active:scale-[0.97] ${
         active ? 'border-primary bg-primary text-white' : 'border-line-strong bg-card text-fg'
       }`}
     >

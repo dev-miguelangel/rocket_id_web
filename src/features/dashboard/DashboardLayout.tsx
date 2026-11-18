@@ -12,7 +12,7 @@ import { useAuth } from '../auth/AuthProvider'
 
 const tabs = [
   { to: '/', label: 'Inicio', icon: HomeIcon, end: true },
-  { to: '/mis-datos', label: 'Mis datos', icon: UserIcon, end: false },
+  { to: '/mis-datos', label: 'Datos', title: 'Mis datos', icon: UserIcon, end: false },
   { to: '/cursos', label: 'Cursos', icon: CapIcon, end: false },
   { to: '/cordada', label: 'Cordada', icon: PeopleIcon, end: false },
   { to: '/eventos', label: 'Eventos', icon: CalendarIcon, end: false },
@@ -24,7 +24,8 @@ const alsoActive = (to: string, pathname: string) =>
 
 export function DashboardLayout() {
   const { pathname } = useLocation()
-  const title = tabs.find((t) => (t.end ? pathname === t.to : pathname.startsWith(t.to)))?.label
+  const tab = tabs.find((t) => (t.end ? pathname === t.to : pathname.startsWith(t.to)))
+  const title = tab && 'title' in tab ? tab.title : tab?.label
 
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
@@ -105,7 +106,7 @@ function UserMenu() {
         onClick={() => setOpen((o) => !o)}
         aria-label={notifications.unread ? `Menú de usuario, ${notifications.unread} notificaciones sin leer` : 'Menú de usuario'}
         aria-expanded={open}
-        className="relative flex size-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white"
+        className="relative flex size-11 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white active:opacity-80"
       >
         {user?.photoURL ? (
           <img src={user.photoURL} alt="" referrerPolicy="no-referrer" className="size-full rounded-full object-cover" />

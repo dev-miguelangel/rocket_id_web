@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { isContactPickerSupported, pickContact } from '../../lib/contactPicker'
 import { toTitleCaseName } from '../../lib/names'
-import { normalizePhone } from '../../lib/phone'
+import { normalizePhone, phoneError, phoneErrorMessage } from '../../lib/phone'
 import { PhoneInput } from '../../components/PhoneInput'
 import { Field, dateInputClass, inputClass, textareaClass } from '../../components/form'
 import {
@@ -14,6 +14,7 @@ import {
   cleanRut,
   formatRut,
   formatRutLive,
+  isValidEmail,
   rutError,
   type ProfileErrors,
   type ProfileForm,
@@ -102,7 +103,7 @@ export function ReadSection({ title, icon, rows, onEdit }: { title: string; icon
           type="button"
           onClick={onEdit}
           aria-label={`Editar ${title}`}
-          className="-my-2 h-10 rounded-lg px-2 text-base font-medium text-primary-text active:opacity-60"
+          className="-my-2.5 h-11 rounded-lg px-3 text-base font-medium text-primary-text active:opacity-60"
         >
           Editar
         </button>
@@ -125,6 +126,19 @@ export function ReadSection({ title, icon, rows, onEdit }: { title: string; icon
 
 // ---------- Formularios de edición ----------
 
+/** Errores de formato al perder el foco (onBlur), antes de guardar */
+function useBlurErrors(form: ProfileForm) {
+  const [touched, setTouched] = useState<Partial<Record<keyof ProfileForm, boolean>>>({})
+  const touch = (k: keyof ProfileForm) => setTouched((t) => ({ ...t, [k]: true }))
+  const blurError = (k: 'phone' | 'emergencyPhone' | 'contactEmail') => {
+    const v = form[k].trim()
+    if (!touched[k] || !v) return undefined
+    if (k === 'contactEmail') return isValidEmail(v) ? undefined : 'Revisa el correo: debe tener la forma nombre@dominio.cl'
+    return phoneError(v) ? phoneErrorMessage(v) : undefined
+  }
+  return { touch, blurError }
+}
+
 interface FormProps {
   form: ProfileForm
   errors: ProfileErrors
@@ -142,6 +156,7 @@ function Group({ children, hint }: { children: ReactNode; hint?: string }) {
 
 export function IdentityForm({ form, errors, set }: FormProps) {
   const age = ageFrom(form.birthDate)
+  const { touch, blurError } = useBlurErrors(form)
   const [docTouched, setDocTouched] = useState(false)
   const isRut = form.docType === 'rut'
   const rutErr = isRut && form.docNumber ? rutError(form.docNumber) : null
@@ -191,13 +206,13 @@ export function IdentityForm({ form, errors, set }: FormProps) {
             onChange={(e) => set('birthDate', e.target.value)} />
         )}
       </Field>
-      <Field label="Celular (con WhatsApp)" error={errors.phone}>
-        {(a) => <PhoneInput {...a} value={form.phone} autoComplete="tel" onChange={(v) => set('phone', v)} />}
+      <Field label="Celular (con WhatsApp)" error={errors.phone ?? blurError('phone')}>
+        {(a) => <PhoneInput {...a} value={form.phone} autoComplete="tel" onChange={(v) => set('phone', v)} onBlur={() => touch('phone')} />}
       </Field>
-      <Field label="Correo electrónico" error={errors.contactEmail} hint="Para rutas (GPX), listas de equipo y descargos.">
+      <Field label="Correo electrónico" error={errors.contactEmail ?? blurError('contactEmail')} hint="Para rutas (GPX), listas de equipo y descargos.">
         {(a) => (
           <input {...a} type="email" inputMode="email" autoComplete="email" className={inputClass}
-            value={form.contactEmail} maxLength={MAX_LEN.short} onChange={(e) => set('contactEmail', e.target.value)} />
+            value={form.contactEmail} maxLength={MAX_LEN.short} onChange={(e) => set('contactEmail', e.target.value)} onBlur={() => touch('contactEmail')} />
         )}
       </Field>
     </Group>
@@ -205,6 +220,7 @@ export function IdentityForm({ form, errors, set }: FormProps) {
 }
 
 export function ContactForm({ form, errors, set }: FormProps) {
+  const { touch, blurError } = useBlurErrors(form)
   const [phoneOptions, setPhoneOptions] = useState<string[]>([])
   const [pickError, setPickError] = useState<string | null>(null)
   const canPick = isContactPickerSupported()
@@ -273,8 +289,8 @@ export function ContactForm({ form, errors, set }: FormProps) {
             placeholder="Ej: madre, pareja, amigo" onChange={(e) => set('emergencyRelationship', e.target.value)} />
         )}
       </Field>
-      <Field label="Teléfono" error={errors.emergencyPhone}>
-        {(a) => <PhoneInput {...a} value={form.emergencyPhone} autoComplete="off" onChange={(v) => set('emergencyPhone', v)} />}
+      <Field label="Teléfono" error={errors.emergencyPhone ?? blurError('emergencyPhone')}>
+        {(a) => <PhoneInput {...a} value={form.emergencyPhone} autoComplete="off" onChange={(v) => set('emergencyPhone', v)} onBlur={() => touch('emergencyPhone')} />}
       </Field>
     </Group>
     </>

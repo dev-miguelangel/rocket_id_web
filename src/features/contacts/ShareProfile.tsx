@@ -72,7 +72,7 @@ export function ShareProfile({ heading = true }: { heading?: boolean }) {
           )}
         </div>
         {canNativeShare && (
-          <button type="button" onClick={copy} className="mt-2 h-10 w-full rounded-lg text-sm font-medium text-primary-text active:bg-line/60">
+          <button type="button" onClick={copy} className="mt-2 h-11 w-full rounded-lg text-sm font-medium text-primary-text active:bg-line/60">
             {copied ? '✓ Enlace copiado' : 'Copiar enlace'}
           </button>
         )}

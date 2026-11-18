@@ -38,7 +38,7 @@ export function ProfileLinkPage() {
         <p className="text-4xl" aria-hidden="true">🔗</p>
         <p className="mt-3 font-semibold text-fg">Enlace no válido</p>
         <p className="mt-1 text-sm text-muted">No encontramos un perfil con el rocketId {param.toUpperCase()}.</p>
-        <Link to="/cordada" className="mt-4 inline-flex h-11 items-center rounded-xl bg-primary px-5 font-semibold text-white">
+        <Link to="/cordada" className="mt-4 inline-flex h-11 items-center rounded-xl bg-primary px-5 font-semibold text-white active:bg-primary-dark">
           Ir a Cordada
         </Link>
       </div>
@@ -71,7 +71,7 @@ export function ProfileLinkPage() {
           isMe ? (
             <p className="py-2 text-center text-sm text-muted">Así te ven los demás 👀</p>
           ) : inCordada ? (
-            <Link to="/cordada" className="flex h-12 w-full items-center justify-center rounded-xl border border-line-strong font-semibold text-fg">
+            <Link to="/cordada" className="flex h-12 w-full items-center justify-center rounded-xl border border-field font-semibold text-fg active:bg-line/60">
               ✓ En tu cordada · Ver cordada
             </Link>
           ) : (

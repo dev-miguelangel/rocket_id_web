@@ -25,8 +25,8 @@ export function useToast(duration = 3500) {
       className={`pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 transition-all duration-300 motion-reduce:transition-none ${toast ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}
     >
       {toast && (
-        <span className="pointer-events-auto flex items-center gap-3 rounded-full bg-zinc-900 py-2 pr-2 pl-4 text-sm font-medium text-white shadow-lg ring-1 ring-white/10">
-          <span className={toast.action ? '' : 'pr-2'}>{toast.message}</span>
+        <span className="pointer-events-auto flex items-center gap-2 rounded-full bg-zinc-900 py-1 pr-1 pl-4 text-sm font-medium text-white shadow-lg ring-1 ring-white/10">
+          <span className={toast.action ? '' : 'py-2.5 pr-3'}>{toast.message}</span>
           {toast.action && (
             <button
               type="button"
@@ -34,7 +34,7 @@ export function useToast(duration = 3500) {
                 toast.action?.onClick()
                 setToast(null)
               }}
-              className="h-8 rounded-full bg-white/15 px-3 font-semibold text-accent active:bg-white/25"
+              className="h-11 rounded-full bg-white/15 px-4 font-semibold text-accent active:bg-white/25"
             >
               {toast.action.label}
             </button>

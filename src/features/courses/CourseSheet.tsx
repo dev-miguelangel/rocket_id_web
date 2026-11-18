@@ -185,10 +185,10 @@ function Detail({ course: c, application }: { course: Course; application?: Appl
       </dl>
 
       <Block title="Descripción">
-        <p className="text-sm leading-relaxed text-fg-soft">{c.description}</p>
+        <p className="max-w-prose text-base leading-relaxed text-fg-soft">{c.description}</p>
       </Block>
       <Block title="Requisitos">
-        <ul className="space-y-1.5 text-sm text-fg-soft">
+        <ul className="space-y-1.5 text-base text-fg-soft">
           {c.requirements.map((r) => (
             <li key={r} className="flex gap-2">
               <span className="text-primary-text" aria-hidden="true">•</span>
@@ -198,7 +198,7 @@ function Detail({ course: c, application }: { course: Course; application?: Appl
         </ul>
       </Block>
       <Block title="Al aprobar obtienes">
-        <p className="text-sm text-fg-soft">🎓 {c.certification}</p>
+        <p className="text-base text-fg-soft">🎓 {c.certification}</p>
       </Block>
     </>
   )
@@ -248,7 +248,7 @@ function Consent({ provider, rocketId, profile: p, skills, missing, accepted, on
     <>
       <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
         <p className="text-base font-semibold text-fg">Compartirás tus datos con {provider}</p>
-        <p className="mt-1 text-sm text-fg-soft">
+        <p className="mt-1 max-w-prose text-base text-fg-soft">
           Para realizar esta postulación se enviará tu información de <strong>identificación</strong>, <strong>contacto</strong> y{' '}
           <strong>conocimientos</strong> a la institución.
         </p>
@@ -344,14 +344,14 @@ function Sent({ provider }: { provider: string }) {
       <div className="mt-6 w-full space-y-3 text-left">
         <div className="flex gap-3 rounded-2xl border border-line bg-card p-4">
           <span className="text-xl" aria-hidden="true">📬</span>
-          <p className="text-sm text-fg-soft">
+          <p className="text-base text-fg-soft">
             La institución tomará contacto contigo <strong>directamente por sus canales preferentes</strong> (correo, teléfono o
             WhatsApp). rocketId no gestiona esta comunicación.
           </p>
         </div>
         <div className="flex gap-3 rounded-2xl border border-line bg-card p-4">
           <span className="text-xl" aria-hidden="true">🔔</span>
-          <p className="text-sm text-fg-soft">
+          <p className="text-base text-fg-soft">
             Revisa el estado en <strong>Cursos → Mis postulaciones</strong>. Más adelante la institución podrá marcarla como{' '}
             <em>vista</em>, <em>aceptada</em> o <em>rechazada</em>.
           </p>

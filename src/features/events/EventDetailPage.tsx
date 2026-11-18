@@ -59,7 +59,7 @@ export function EventDetailPage() {
   const [event, setEvent] = useState<EventDoc | null | undefined>(undefined)
   const [participants, setParticipants] = useState<Participant[] | null>(null)
   const [profiles, setProfiles] = useState<Record<string, SearchResult>>({})
-  const [sheet, setSheet] = useState<null | 'consent' | 'invite' | 'cancel' | 'edit'>(null)
+  const [sheet, setSheet] = useState<null | 'consent' | 'invite' | 'cancel' | 'edit' | 'options'>(null)
   const [openP, setOpenP] = useState<Participant | null>(null)
   const [busy, setBusy] = useState(false)
   const [editSession, setEditSession] = useState(0)
@@ -91,7 +91,7 @@ export function EventDetailPage() {
         <p className="text-4xl" aria-hidden="true">🔗</p>
         <p className="mt-3 font-semibold text-fg">Evento no encontrado</p>
         <p className="mt-1 text-sm text-muted">El enlace no es válido o el evento ya no existe.</p>
-        <Link to="/eventos" className="mt-4 inline-flex h-11 items-center rounded-xl bg-primary px-5 font-semibold text-white">
+        <Link to="/eventos" className="mt-4 inline-flex h-11 items-center rounded-xl bg-primary px-5 font-semibold text-white active:bg-primary-dark">
           Ver eventos
         </Link>
       </div>
@@ -143,20 +143,20 @@ export function EventDetailPage() {
   else if (past) action = <p className="text-center text-sm text-muted">Este evento ya terminó</p>
   else if (isOrganizer)
     action = (
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => setSheet('invite')} className={primaryBtn}>
-          🪢 Invitar
-        </button>
-        <button type="button" onClick={shareWhatsApp} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#25D366] font-semibold text-white active:opacity-80">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+        <button type="button" onClick={shareWhatsApp} className={`${secondaryBtn} px-4`} aria-label="Compartir por WhatsApp">
           💬 Compartir
+        </button>
+        <button type="button" onClick={() => setSheet('invite')} className={primaryBtn}>
+          🪢 Invitar a mi cordada
         </button>
       </div>
     )
   else if (myRow?.status === 'confirmed')
     action = (
       <div className="space-y-2">
-        <p className="rounded-xl bg-emerald-50 p-3 text-center text-sm font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">✓ Vas a este evento</p>
-        <button type="button" onClick={doDecline} disabled={busy} className="h-10 w-full rounded-lg text-sm font-medium text-red-600 active:bg-red-50 dark:text-red-400">
+        <p className="rounded-xl bg-emerald-50 p-3 text-center text-base font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">✓ Vas a este evento</p>
+        <button type="button" onClick={doDecline} disabled={busy} className="h-11 w-full rounded-lg text-sm font-medium text-red-600 active:bg-red-50 dark:text-red-400">
           Ya no puedo ir
         </button>
       </div>
@@ -180,10 +180,10 @@ export function EventDetailPage() {
     )
 
   return (
-    <div className="space-y-5 pb-4">
+    <div className={`space-y-5 ${cancelled || past ? 'pb-4' : 'pb-32'}`}>
       {/* Encabezado */}
-      <section className="rounded-3xl bg-gradient-to-br from-primary to-accent p-5 text-white shadow-lg shadow-primary/20">
-        <div className="flex items-center gap-2 text-sm opacity-90">
+      <section className="rounded-3xl bg-gradient-to-br from-primary-dark to-primary p-5 text-white shadow-lg shadow-primary/20">
+        <div className="flex items-center gap-2 text-sm font-medium">
           <span aria-hidden="true">{a.icon}</span>
           {a.label}
           <span className="ml-auto flex items-center gap-2">
@@ -191,21 +191,19 @@ export function EventDetailPage() {
             {isOrganizer && !cancelled && (
               <button
                 type="button"
-                onClick={() => {
-                  setEditSession((n) => n + 1)
-                  setSheet('edit')
-                }}
-                className="h-8 rounded-full bg-white/20 px-3 text-xs font-semibold text-white active:bg-white/30"
+                onClick={() => setSheet('options')}
+                aria-label="Opciones del evento"
+                className="-my-2 -mr-2 flex size-11 items-center justify-center rounded-full text-xl font-bold text-white active:bg-white/20"
               >
-                ✎ Editar
+                ⋯
               </button>
             )}
           </span>
         </div>
         <h2 className={`mt-2 text-2xl leading-tight font-bold ${cancelled ? 'line-through opacity-70' : ''}`}>{event.title}</h2>
-        <p className="mt-2 text-sm opacity-95">📅 {formatEventDate(event.startAt, event.endAt)}</p>
-        <p className="text-sm opacity-95">📍 {event.location}</p>
-        {event.meetingPoint && <p className="text-sm opacity-95">🚩 {event.meetingPoint}</p>}
+        <p className="mt-2 text-base">📅 {formatEventDate(event.startAt, event.endAt)}</p>
+        <p className="text-base">📍 {event.location}</p>
+        {event.meetingPoint && <p className="text-base">🚩 {event.meetingPoint}</p>}
         <div className="mt-4 flex items-center gap-2 border-t border-white/20 pt-3">
           <Avatar name={event.organizerName} photoURL={event.organizerPhoto} className="size-8 text-xs ring-2 ring-white/40" />
           <span className="text-sm">
@@ -214,11 +212,11 @@ export function EventDetailPage() {
         </div>
       </section>
 
-      {action}
+      {(cancelled || past) && action}
 
       {event.description && (
         <Block title="Descripción">
-          <p className="text-sm leading-relaxed whitespace-pre-line text-fg-soft">{event.description}</p>
+          <p className="max-w-prose text-base leading-relaxed whitespace-pre-line text-fg-soft">{event.description}</p>
         </Block>
       )}
 
@@ -284,11 +282,48 @@ export function EventDetailPage() {
         </section>
       )}
 
-      {isOrganizer && !cancelled && !past && (
-        <button type="button" onClick={() => setSheet('cancel')} className="h-11 w-full rounded-xl text-sm font-medium text-red-600 active:bg-red-50 dark:text-red-400">
-          Cancelar evento
-        </button>
+      {/* Acción principal en la zona del pulgar, sobre la navegación inferior */}
+      {!cancelled && !past && (
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-line bg-surface/95 backdrop-blur">
+          <div className="mx-auto max-w-3xl px-4 py-3">{action}</div>
+        </div>
       )}
+
+      {/* Opciones del organizador: secundarias y destructivas, arriba y fuera de la zona del pulgar */}
+      <BottomSheet open={sheet === 'options'} title="Opciones del evento" onClose={closeSheet}>
+        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card">
+          <li>
+            <OptionRow
+              icon="✎"
+              label="Editar evento"
+              onClick={() => {
+                setEditSession((n) => n + 1)
+                setSheet('edit')
+              }}
+            />
+          </li>
+          <li>
+            <OptionRow icon="💬" label="Compartir por WhatsApp" onClick={() => { setSheet(null); shareWhatsApp() }} />
+          </li>
+          <li>
+            <OptionRow
+              icon="⧉"
+              label="Copiar enlace del evento"
+              onClick={() => {
+                navigator.clipboard?.writeText(url).then(() => toast.show('Enlace copiado')).catch(() => {})
+                setSheet(null)
+              }}
+            />
+          </li>
+        </ul>
+        {!past && (
+          <ul className="overflow-hidden rounded-2xl border border-line bg-card">
+            <li>
+              <OptionRow icon="🚫" label="Cancelar evento" danger onClick={() => setSheet('cancel')} />
+            </li>
+          </ul>
+        )}
+      </BottomSheet>
 
       {/* ---------- Hojas ---------- */}
       {isOrganizer && (
@@ -335,6 +370,20 @@ export function EventDetailPage() {
 
       {toast.node}
     </div>
+  )
+}
+
+function OptionRow({ icon, label, danger, onClick }: { icon: string; label: string; danger?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-12 w-full items-center gap-3 px-4 text-left text-base font-medium active:bg-line/60 ${danger ? 'text-red-600 dark:text-red-400' : 'text-fg'}`}
+    >
+      <span className="w-6 text-center text-lg" aria-hidden="true">{icon}</span>
+      <span className="flex-1">{label}</span>
+      {!danger && <span className="text-muted" aria-hidden="true">›</span>}
+    </button>
   )
 }
 
@@ -403,7 +452,7 @@ function ConsentSheet({ open, event, busy, onClose, onConfirm }: { open: boolean
     >
       <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
         <p className="font-semibold text-fg">Compartirás tu ficha de emergencia con {event.organizerName}</p>
-        <p className="mt-1 text-sm text-fg-soft">{EVENT_CONSENT_TEXT}</p>
+        <p className="mt-1 max-w-prose text-base text-fg-soft">{EVENT_CONSENT_TEXT}</p>
       </div>
       <p className="px-1 text-xs text-muted">
         Revisa que tu ficha esté al día en{' '}
@@ -488,7 +537,7 @@ function InviteSheet({
               {inEvent.has(c.uid) ? (
                 <span className="text-sm text-muted">Invitado</span>
               ) : (
-                <button type="button" onClick={() => send(c)} disabled={sending === c.uid} className="h-9 rounded-lg bg-primary px-4 text-sm font-semibold text-white active:bg-primary-dark disabled:opacity-50">
+                <button type="button" onClick={() => send(c)} disabled={sending === c.uid} className="h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-white active:bg-primary-dark disabled:opacity-50">
                   {sending === c.uid ? '…' : 'Invitar'}
                 </button>
               )}
@@ -588,7 +637,7 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
             <span className="text-2xl" aria-hidden="true">🔔</span>
             <div>
               <p className="font-semibold">{firstName(shown.displayName)} será notificado</p>
-              <p className="mt-1 text-sm">
+              <p className="mt-1 text-base">
                 Vas a ver datos sensibles (identificación, salud y contacto de emergencia). {firstName(shown.displayName)} recibirá una notificación indicando que viste su ficha en “{event.title}”.
               </p>
             </div>

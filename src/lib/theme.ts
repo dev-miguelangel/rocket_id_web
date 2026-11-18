@@ -3,7 +3,7 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react'
 export type ThemePreference = 'system' | 'light' | 'dark'
 
 const STORAGE_KEY = 'rocketid-theme'
-const THEME_COLORS = { light: '#0D9488', dark: '#09090B' } as const
+const THEME_COLORS = { light: '#0F766E', dark: '#09090B' } as const
 const media = () => window.matchMedia('(prefers-color-scheme: dark)')
 
 function readPreference(): ThemePreference {

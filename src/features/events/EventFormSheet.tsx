@@ -47,6 +47,28 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
   const [publicAck, setPublicAck] = useState(event?.visibility === 'public')
   const [ackOpen, setAckOpen] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
+  // Divulgación progresiva: lo opcional va plegado (abierto si al editar ya tiene datos)
+  const [moreOpen, setMoreOpen] = useState(
+    !!event && !!(event.meetingPoint || event.description || event.capacity || event.requirements.length),
+  )
+  const optionalCount = [meetingPoint, description, capacity].filter((v) => v.trim()).length + requirements.length
+
+  /** Validación al salir de cada campo (onBlur), con mensajes que dicen cómo corregir */
+  const checkField = (field: 'title' | 'start' | 'end' | 'location') => {
+    const s = new Date(start)
+    const en = new Date(end)
+    const msg =
+      field === 'title'
+        ? !title.trim() && 'Ponle un nombre a la salida, por ejemplo “Ascenso al cerro Provincia”.'
+        : field === 'location'
+          ? !location.trim() && 'Indica el lugar o la ruta para que el grupo sepa dónde es.'
+          : field === 'start'
+            ? Number.isNaN(s.getTime())
+              ? 'Elige el día y la hora de inicio.'
+              : !editing && s.getTime() < Date.now() - 3_600_000 && 'Esa fecha ya pasó: elige una fecha futura.'
+            : (Number.isNaN(en.getTime()) || en < s) && 'El término debe ser después del inicio.'
+    setErrors((e) => ({ ...e, [field]: msg || undefined }))
+  }
   const [saving, setSaving] = useState(false)
   const closeAck = useCallback(() => setAckOpen(false), [])
 
@@ -72,11 +94,11 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
     const s = new Date(start)
     const en = new Date(end)
     const errs: Errors = {}
-    if (!title.trim()) errs.title = 'Ponle un nombre a la salida.'
-    if (Number.isNaN(s.getTime())) errs.start = 'Indica cuándo empieza.'
-    if (Number.isNaN(en.getTime()) || en < s) errs.end = 'Debe terminar después de empezar.'
-    if (!editing && s.getTime() < Date.now() - 3_600_000) errs.start = 'La fecha ya pasó.'
-    if (!location.trim()) errs.location = 'Indica el lugar o la ruta.'
+    if (!title.trim()) errs.title = 'Ponle un nombre a la salida, por ejemplo “Ascenso al cerro Provincia”.'
+    if (Number.isNaN(s.getTime())) errs.start = 'Elige el día y la hora de inicio.'
+    if (Number.isNaN(en.getTime()) || en < s) errs.end = 'El término debe ser después del inicio.'
+    if (!editing && s.getTime() < Date.now() - 3_600_000) errs.start = 'Esa fecha ya pasó: elige una fecha futura.'
+    if (!location.trim()) errs.location = 'Indica el lugar o la ruta para que el grupo sepa dónde es.'
     if (visibility === 'public' && !publicAck) errs.general = 'Para publicar debes aceptar las responsabilidades.'
     setErrors(errs)
     if (Object.keys(errs).length) return
@@ -125,14 +147,14 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
 
         <div className="rounded-2xl border border-line bg-card p-4">
           <p className="mb-2 text-sm font-medium text-fg-soft">Actividad</p>
-          <div className="-mx-1 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {EVENT_ACTIVITIES.map((a) => (
               <button
                 key={a.id}
                 type="button"
                 aria-pressed={activity === a.id}
                 onClick={() => setActivity(a.id)}
-                className={`h-10 rounded-full border px-3 text-sm font-medium ${activity === a.id ? 'border-primary bg-primary text-white' : 'border-line-strong bg-card text-fg'}`}
+                className={`h-11 rounded-full border px-3.5 text-sm font-medium active:scale-[0.97] ${activity === a.id ? 'border-primary bg-primary text-white' : 'border-field bg-card text-fg'}`}
               >
                 {a.icon} {a.label}
               </button>
@@ -142,19 +164,40 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
 
         <div className="space-y-4 rounded-2xl border border-line bg-card p-4">
           <Field label="Nombre de la salida" error={errors.title}>
-            {(a) => <input {...a} className={inputClass} value={title} maxLength={100} placeholder="Ej: Ascenso al cerro Provincia" onChange={(e) => setTitle(e.target.value)} />}
+            {(a) => <input {...a} className={inputClass} value={title} maxLength={100} placeholder="Ej: Ascenso al cerro Provincia" onChange={(e) => setTitle(e.target.value)} onBlur={() => checkField('title')} />}
           </Field>
           <div className="grid grid-cols-1 gap-3">
             <Field label="Inicio" error={errors.start}>
-              {(a) => <input {...a} type="datetime-local" className={dateInputClass} value={start} onChange={(e) => setStart(e.target.value)} />}
+              {(a) => <input {...a} type="datetime-local" className={dateInputClass} value={start} onChange={(e) => setStart(e.target.value)} onBlur={() => checkField('start')} />}
             </Field>
             <Field label="Término" error={errors.end}>
-              {(a) => <input {...a} type="datetime-local" className={dateInputClass} value={end} min={start} onChange={(e) => setEnd(e.target.value)} />}
+              {(a) => <input {...a} type="datetime-local" className={dateInputClass} value={end} min={start} onChange={(e) => setEnd(e.target.value)} onBlur={() => checkField('end')} />}
             </Field>
           </div>
           <Field label="Lugar o ruta" error={errors.location}>
-            {(a) => <input {...a} className={inputClass} value={location} maxLength={150} placeholder="Ej: Cerro Provincia, Santiago" onChange={(e) => setLocation(e.target.value)} />}
+            {(a) => <input {...a} className={inputClass} value={location} maxLength={150} placeholder="Ej: Cerro Provincia, Santiago" onChange={(e) => setLocation(e.target.value)} onBlur={() => checkField('location')} />}
           </Field>
+        </div>
+
+        {/* Más detalles (opcional): plegado para reducir la carga inicial */}
+        <button
+          type="button"
+          onClick={() => setMoreOpen((o) => !o)}
+          aria-expanded={moreOpen}
+          aria-controls="event-more"
+          className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-line bg-card px-4 text-left active:bg-line/60"
+        >
+          <span className="flex-1">
+            <span className="block text-base font-medium text-fg">Más detalles</span>
+            <span className="block text-sm text-muted">
+              {optionalCount ? `${optionalCount} completado${optionalCount === 1 ? '' : 's'}` : 'Opcional: punto de encuentro, descripción, cupos y requisitos'}
+            </span>
+          </span>
+          <span aria-hidden="true" className={`text-lg text-muted transition-transform ${moreOpen ? 'rotate-90' : ''}`}>›</span>
+        </button>
+
+        <div id="event-more" hidden={!moreOpen} className="space-y-4">
+        <div className="space-y-4 rounded-2xl border border-line bg-card p-4">
           <Field label="Punto de encuentro" hint="Opcional">
             {(a) => <input {...a} className={inputClass} value={meetingPoint} maxLength={200} placeholder="Ej: Estacionamiento San Carlos de Apoquindo, 7:30" onChange={(e) => setMeetingPoint(e.target.value)} />}
           </Field>
@@ -169,6 +212,7 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
         </div>
 
         <RequirementsEditor value={requirements} onChange={setRequirements} />
+        </div>
 
         <div className="space-y-3 rounded-2xl border border-line bg-card p-4">
           <Segmented
@@ -221,9 +265,9 @@ function RequirementsEditor({ value, onChange }: { value: Requirement[]; onChang
       {value.length > 0 && (
         <ul className="flex flex-wrap gap-2">
           {value.map((r, i) => (
-            <li key={i} className="flex items-center gap-1 rounded-full bg-primary/10 py-1 pr-1 pl-3 text-sm font-medium text-primary-text">
+            <li key={i} className="flex h-11 items-center gap-1 rounded-full bg-primary/10 pl-3.5 text-sm font-medium text-primary-text">
               {categoryOf(r.category)?.icon} {r.label}
-              <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={`Quitar ${r.label}`} className="flex size-7 items-center justify-center rounded-full active:bg-primary/20">
+              <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={`Quitar ${r.label}`} className="-my-2 flex size-11 items-center justify-center rounded-full active:bg-primary/20">
                 ✕
               </button>
             </li>
@@ -231,24 +275,28 @@ function RequirementsEditor({ value, onChange }: { value: Requirement[]; onChang
         </ul>
       )}
       {value.length < 10 && (
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-          <select aria-label="Área del requisito" className={inputClass.replace('mt-1 ', '')} value={cat} onChange={(e) => setCat(e.target.value as CategoryId)}>
-            <option value="">Elegir área…</option>
-            {SKILL_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
-          </select>
-          <button type="button" onClick={add} disabled={!cat} className="h-12 rounded-xl bg-primary px-4 font-semibold text-white disabled:opacity-40">
-            Agregar
-          </button>
+        <div className="space-y-3">
+          <Field label="Área del requisito">
+            {(a) => (
+              <select {...a} className={inputClass} value={cat} onChange={(e) => setCat(e.target.value as CategoryId)}>
+                <option value="">Elegir área…</option>
+                {SKILL_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+              </select>
+            )}
+          </Field>
           {cat && (
-            <input
-              aria-label="Detalle del requisito"
-              className={`${inputClass.replace('mt-1 ', '')} col-span-2`}
-              value={label}
-              maxLength={80}
-              placeholder={`Detalle opcional (ej. "WFA vigente")`}
-              onChange={(e) => setLabel(e.target.value)}
-            />
+            <Field label="Detalle" hint="Opcional, ej. “WFA vigente”">
+              {(a) => <input {...a} className={inputClass} value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} />}
+            </Field>
           )}
+          <button
+            type="button"
+            onClick={add}
+            disabled={!cat}
+            className="h-12 w-full rounded-xl border border-field bg-card font-semibold text-primary-text active:bg-line/60 disabled:opacity-40"
+          >
+            + Agregar requisito
+          </button>
         </div>
       )}
     </div>
@@ -294,7 +342,7 @@ function PublicAckSheet({ open, onClose, onAccept }: { open: boolean; onClose: (
       </div>
       <ul className="space-y-3 rounded-2xl border border-line bg-card p-4">
         {PUBLIC_RESPONSIBILITIES.map((r) => (
-          <li key={r} className="flex gap-3 text-sm text-fg-soft">
+          <li key={r} className="flex max-w-prose gap-3 text-base text-fg-soft">
             <span className="text-primary-text" aria-hidden="true">•</span>
             {r}
           </li>

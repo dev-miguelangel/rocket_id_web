@@ -179,7 +179,7 @@ export function validate(f: ProfileForm): ProfileErrors {
     if (age === null || age < 0 || age > 110) e.birthDate = 'Fecha no válida.'
   }
   if (f.phone && !isValidPhone(f.phone)) e.phone = phoneErrorMessage(f.phone)
-  if (f.contactEmail && !isValidEmail(f.contactEmail)) e.contactEmail = 'Correo no válido.'
+  if (f.contactEmail && !isValidEmail(f.contactEmail)) e.contactEmail = 'Revisa el correo: debe tener la forma nombre@dominio.cl'
   if (f.emergencyPhone && !isValidPhone(f.emergencyPhone)) e.emergencyPhone = phoneErrorMessage(f.emergencyPhone)
   else if (f.emergencyPhone && f.phone && samePhone(f.phone, f.emergencyPhone))
     e.emergencyPhone = 'Debe ser el teléfono de otra persona, no el tuyo.'

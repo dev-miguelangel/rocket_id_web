@@ -9,13 +9,14 @@ interface PhoneInputProps {
   'aria-describedby'?: string
   autoComplete?: string
   placeholder?: string
+  onBlur?: () => void
 }
 
 /**
  * Selector de código de país + número nacional.
  * El selector es un <select> nativo (abre la rueda/lista del sistema) cubierto por una etiqueta compacta "🇨🇱 +56".
  */
-export function PhoneInput({ id, value, onChange, autoComplete = 'tel-national', placeholder, ...aria }: PhoneInputProps) {
+export function PhoneInput({ id, value, onChange, onBlur, autoComplete = 'tel-national', placeholder, ...aria }: PhoneInputProps) {
   const parsed = parsePhone(value)
   // El país elegido se recuerda aunque el número esté vacío
   const [country, setCountry] = useState<Country>(parsed.country)
@@ -27,10 +28,10 @@ export function PhoneInput({ id, value, onChange, autoComplete = 'tel-national',
   return (
     <div
       className={`mt-1 flex h-12 w-full overflow-hidden rounded-xl border bg-card focus-within:ring-2 ${
-        invalid ? 'border-red-500 focus-within:ring-red-500/20' : 'border-line-strong focus-within:border-primary focus-within:ring-primary/20'
+        invalid ? 'border-red-500 focus-within:ring-red-500/20' : 'border-field focus-within:border-primary focus-within:ring-primary/20'
       }`}
     >
-      <div className="relative flex shrink-0 items-center gap-1 border-r border-line-strong bg-surface pr-2 pl-3 text-base text-fg">
+      <div className="relative flex shrink-0 items-center gap-1 border-r border-field bg-surface pr-2 pl-3 text-base text-fg">
         <span aria-hidden="true">{active.flag}</span>
         <span aria-hidden="true" className="tabular-nums">+{active.dial}</span>
         <span aria-hidden="true" className="text-xs text-muted">▾</span>
@@ -59,6 +60,7 @@ export function PhoneInput({ id, value, onChange, autoComplete = 'tel-national',
         autoComplete={autoComplete}
         value={groupNational(active, parsed.national)}
         placeholder={placeholder ?? (active.iso === 'CL' ? '9 1234 5678' : groupNational(active, '123456789012'.slice(0, active.min)))}
+        onBlur={onBlur}
         onChange={(e) => {
           const raw = e.target.value
           // Si pegan un número internacional completo, detectamos el país

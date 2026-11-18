@@ -66,7 +66,7 @@ export function PublicProfilePage() {
   return (
     <div className="min-h-dvh bg-surface pb-[calc(7rem+env(safe-area-inset-bottom))]">
       {/* Portada */}
-      <header className="pt-safe relative overflow-hidden bg-gradient-to-br from-primary to-accent">
+      <header className="pt-safe relative overflow-hidden bg-gradient-to-br from-primary-dark to-primary">
         <div className="mx-auto flex h-14 max-w-md items-center gap-2 px-4">
           <Logo className="size-8 rounded-lg ring-1 ring-white/30" />
           <span className="text-lg font-bold tracking-tight text-white">rocketId</span>

@@ -24,7 +24,7 @@ export function RocketIdBadge({ rocketId, variant = 'default', className = '' }:
 
   if (!rocketId) {
     return (
-      <span className={`inline-flex h-9 items-center rounded-full px-3 text-sm ring-1 ${styles} ${className}`} aria-busy="true">
+      <span className={`inline-flex h-11 items-center rounded-full px-4 text-sm ring-1 ${styles} ${className}`} aria-busy="true">
         <span className="h-3 w-20 animate-pulse rounded bg-current opacity-30" />
       </span>
     )
@@ -45,7 +45,7 @@ export function RocketIdBadge({ rocketId, variant = 'default', className = '' }:
       type="button"
       onClick={copy}
       aria-label={`Tu rocketId es ${rocketId.split('').join(' ')}. Tocar para copiar`}
-      className={`inline-flex h-9 items-center gap-2 rounded-full px-3 font-mono text-sm font-bold tracking-wider ring-1 transition ${styles} ${className}`}
+      className={`inline-flex h-11 items-center gap-2 rounded-full px-4 font-mono text-sm font-bold tracking-wider ring-1 transition ${styles} ${className}`}
     >
       <span aria-hidden="true">🚀</span>
       {rocketId}

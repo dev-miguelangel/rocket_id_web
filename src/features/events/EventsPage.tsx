@@ -84,7 +84,7 @@ export function EventsPage() {
       {error[tab] && (
         <div className="flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
           <span className="flex-1">No se pudieron cargar los eventos. Revisa tu conexión.</span>
-          <button type="button" onClick={() => setReload((n) => n + 1)} className="h-9 shrink-0 rounded-lg bg-amber-200/60 px-3 font-semibold active:bg-amber-200 dark:bg-amber-500/20">
+          <button type="button" onClick={() => setReload((n) => n + 1)} className="h-11 shrink-0 rounded-lg bg-amber-200/60 px-4 font-semibold active:bg-amber-200 dark:bg-amber-500/20">
             Reintentar
           </button>
         </div>
@@ -170,7 +170,7 @@ function Empty({ icon, title, text, action }: { icon: string; title: string; tex
       <p className="mt-3 font-semibold text-fg">{title}</p>
       <p className="mt-1 text-sm text-muted">{text}</p>
       {action && (
-        <button type="button" onClick={action.onClick} className="mt-4 h-11 rounded-xl bg-primary px-5 font-semibold text-white active:bg-primary-dark">
+        <button type="button" onClick={action.onClick} className="mt-4 h-11 rounded-xl border border-field bg-card px-5 font-semibold text-primary-text active:bg-line/60">
           {action.label}
         </button>
       )}
