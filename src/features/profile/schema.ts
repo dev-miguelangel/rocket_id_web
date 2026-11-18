@@ -172,7 +172,7 @@ export function validate(f: ProfileForm): ProfileErrors {
     if (f.docType === 'rut') {
       const err = rutError(f.docNumber)
       if (err) e.docNumber = RUT_ERROR_MESSAGES[err]
-    } else if (!/^[A-Za-z0-9.\-]{5,20}$/.test(f.docNumber.trim())) {
+    } else if (!/^[A-Za-z0-9.-]{5,20}$/.test(f.docNumber.trim())) {
       e.docNumber = 'Entre 5 y 20 letras o números.'
     }
   }

@@ -5,13 +5,19 @@ import { useAuth } from '../auth/AuthProvider'
 import { saveProfile, subscribeProfile } from '../profile/profileApi'
 import { CRITICAL_FIELDS, emptyProfile, formatRut, validate, type ProfileErrors, type ProfileForm } from '../profile/schema'
 import { ContactForm, HealthForm, IdentityForm, ReadSection, SECTIONS, rowsFor, type SectionId } from '../profile/sections'
+import { SKILLS_TITLE, SkillsForm, SkillsReadSection } from '../skills/SkillsSection'
+import { emptySkills, hasSkillsErrors, validateSkills, type SkillsData, type SkillsErrors } from '../skills/schema'
+import { saveSkills, subscribeSkills } from '../skills/skillsApi'
 
 const FORMS = { identity: IdentityForm, contact: ContactForm, health: HealthForm }
 
 export function MyDataPage() {
   const { user } = useAuth()
   const [profile, setProfile] = useState<ProfileForm | null>(null)
-  const [editing, setEditing] = useState<SectionId | null>(null)
+  const [skills, setSkills] = useState<SkillsData | null>(null)
+  const [skillsDraft, setSkillsDraft] = useState<SkillsData>(emptySkills)
+  const [skillsErrors, setSkillsErrors] = useState<SkillsErrors>({ certs: {} })
+  const [editing, setEditing] = useState<SectionId | 'skills' | null>(null)
   const [draft, setDraft] = useState<ProfileForm>(emptyProfile)
   const [errors, setErrors] = useState<ProfileErrors>({})
   const [saving, setSaving] = useState(false)
@@ -26,48 +32,37 @@ export function MyDataPage() {
   }, [user])
 
   useEffect(() => {
+    if (!user) return
+    return subscribeSkills(user.uid, setSkills)
+  }, [user])
+
+  useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 2500)
     return () => clearTimeout(t)
   }, [toast])
 
   const section = SECTIONS.find((s) => s.id === editing)
-  const dirty = useMemo(
-    () => !!profile && !!section && section.keys.some((k) => draft[k] !== profile[k]),
-    [draft, profile, section],
-  )
+  const dirty = useMemo(() => {
+    if (editing === 'skills') return JSON.stringify(skillsDraft) !== JSON.stringify(skills ?? emptySkills)
+    return !!profile && !!section && section.keys.some((k) => draft[k] !== profile[k])
+  }, [editing, skillsDraft, skills, draft, profile, section])
 
-  const openEditor = (id: SectionId) => {
+  const openEditor = (id: SectionId | 'skills') => {
     if (!profile) return
-    setDraft(profile)
-    setErrors({})
+    if (id === 'skills') {
+      setSkillsDraft(skills ?? emptySkills)
+      setSkillsErrors({ certs: {} })
+    } else {
+      setDraft(profile)
+      setErrors({})
+    }
     setEditing(id)
   }
-  const closeEditor = useCallback(() => setEditing(null), [])
 
-  const set = <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => {
-    setDraft((d) => ({ ...d, [key]: value }))
-    setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e))
-  }
-
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!user || !section) return
-    const next: ProfileForm = {
-      ...draft,
-      fullName: toTitleCaseName(draft.fullName),
-      emergencyName: toTitleCaseName(draft.emergencyName),
-      docNumber: draft.docType === 'rut' && draft.docNumber ? formatRut(draft.docNumber) : draft.docNumber,
-    }
-    const all = validate(next)
-    const errs = Object.fromEntries(Object.entries(all).filter(([k]) => section.keys.includes(k as keyof ProfileForm)))
-    setErrors(errs)
-    if (Object.keys(errs).length) {
-      document.querySelector<HTMLElement>('[role="dialog"] [aria-invalid="true"]')?.focus()
-      return
-    }
+  /** Espera la confirmación del servidor (o la deja en cola si no hay red) y cierra la hoja. */
+  const commit = async (pending: Promise<void>) => {
     setSaving(true)
-    const pending = saveProfile(user.uid, next)
     try {
       // Offline: Firestore lo deja en cola local y sincroniza al volver la red
       if (navigator.onLine) await pending
@@ -82,11 +77,53 @@ export function MyDataPage() {
     }
   }
 
+  const changeSkills = (v: SkillsData) => {
+    setSkillsDraft(v)
+    if (hasSkillsErrors(skillsErrors)) setSkillsErrors(validateSkills(v))
+  }
+  const closeEditor = useCallback(() => setEditing(null), [])
+
+  const set = <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => {
+    setDraft((d) => ({ ...d, [key]: value }))
+    setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e))
+  }
+
+  const handleSave = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!user) return
+    if (editing === 'skills') {
+      const errs = validateSkills(skillsDraft)
+      setSkillsErrors(errs)
+      if (hasSkillsErrors(errs)) {
+        requestAnimationFrame(() =>
+          document.querySelector<HTMLElement>('[role="dialog"] [aria-invalid="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+        )
+        return
+      }
+      return commit(saveSkills(user.uid, skillsDraft))
+    }
+    if (!section) return
+    const next: ProfileForm = {
+      ...draft,
+      fullName: toTitleCaseName(draft.fullName),
+      emergencyName: toTitleCaseName(draft.emergencyName),
+      docNumber: draft.docType === 'rut' && draft.docNumber ? formatRut(draft.docNumber) : draft.docNumber,
+    }
+    const all = validate(next)
+    const errs = Object.fromEntries(Object.entries(all).filter(([k]) => section.keys.includes(k as keyof ProfileForm)))
+    setErrors(errs)
+    if (Object.keys(errs).length) {
+      document.querySelector<HTMLElement>('[role="dialog"] [aria-invalid="true"]')?.focus()
+      return
+    }
+    return commit(saveProfile(user.uid, next))
+  }
+
   if (!profile) return <ListSkeleton />
 
   const missing = CRITICAL_FIELDS.filter(({ key }) => !profile[key].trim())
   const firstMissingSection = SECTIONS.find((s) => missing[0] && s.keys.includes(missing[0].key))
-  const EditForm = editing ? FORMS[editing] : null
+  const EditForm = editing && editing !== 'skills' ? FORMS[editing] : null
 
   return (
     <div className="space-y-6 pb-4">
@@ -116,17 +153,20 @@ export function MyDataPage() {
         <ReadSection key={s.id} title={s.title} icon={s.icon} rows={rowsFor(s.id, profile)} onEdit={() => openEditor(s.id)} />
       ))}
 
+      <SkillsReadSection data={skills ?? emptySkills} onEdit={() => openEditor('skills')} />
+
       <p className="px-4 text-center text-xs text-subtle">🔒 Solo tú puedes ver estos datos.</p>
 
       <Sheet
         open={!!editing}
-        title={section?.title ?? ''}
+        title={editing === 'skills' ? SKILLS_TITLE : (section?.title ?? '')}
         onCancel={closeEditor}
         onSubmit={handleSave}
         saving={saving}
         canSave={dirty}
       >
         {EditForm && <EditForm form={draft} errors={errors} set={set} />}
+        {editing === 'skills' && <SkillsForm value={skillsDraft} errors={skillsErrors} onChange={changeSkills} />}
       </Sheet>
 
       {/* Toast de confirmación, sobre la navegación inferior */}

@@ -32,6 +32,19 @@ service cloud.firestore {
         && optStr(request.resource.data, 'contactEmail', 120);
       allow delete: if false;
 
+      // Conocimientos y certificaciones outdoor: users/{uid}/private/skills
+      match /private/skills {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['hasCertifications', 'categories', 'certifications', 'updatedAt'])
+          && request.resource.data.hasCertifications in ['yes', 'no', '']
+          && request.resource.data.categories is list
+          && request.resource.data.categories.size() <= 10
+          && request.resource.data.certifications is list
+          && request.resource.data.certifications.size() <= 20;
+        allow delete: if false;
+      }
+
       // Ficha de emergencia (datos sensibles de salud): users/{uid}/private/emergency
       match /private/{docId} {
         allow read: if isOwner(uid) && docId == 'emergency';

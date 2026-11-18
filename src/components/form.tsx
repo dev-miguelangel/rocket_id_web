@@ -57,3 +57,49 @@ export function FormSection({ title, description, icon, children }: { title: str
     </section>
   )
 }
+
+interface SegmentedProps<T extends string> {
+  label: string
+  value: T | ''
+  options: readonly { value: T; label: string }[]
+  onChange: (v: T) => void
+  error?: string
+}
+
+/** Control segmentado nativo (iOS UISegmentedControl / Android SegmentedButton) */
+export function Segmented<T extends string>({ label, value, options, onChange, error }: SegmentedProps<T>) {
+  const id = useId()
+  return (
+    <div className="min-w-0">
+      <p id={id} className="text-sm font-medium text-fg-soft">
+        {label}
+      </p>
+      <div
+        role="radiogroup"
+        aria-labelledby={id}
+        aria-invalid={error ? true : undefined}
+        className={`mt-1 grid gap-1 rounded-xl bg-surface p-1 ring-1 ${error ? 'ring-red-500' : 'ring-line'}`}
+        style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      >
+        {options.map((o) => {
+          const active = value === o.value
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(o.value)}
+              className={`h-10 truncate rounded-lg px-2 text-sm font-medium transition ${
+                active ? 'bg-card text-primary-text shadow-sm ring-1 ring-line' : 'text-muted active:bg-line/60'
+              }`}
+            >
+              {o.label}
+            </button>
+          )
+        })}
+      </div>
+      {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
+    </div>
+  )
+}
