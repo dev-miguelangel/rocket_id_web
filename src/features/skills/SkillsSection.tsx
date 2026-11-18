@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Field, Segmented, inputClass } from '../../components/form'
+import { SwipeRow } from '../../components/SwipeRow'
 import { VerifiedBadge } from '../../components/VerifiedBadge'
 import {
   CERT_STATUSES,
@@ -50,10 +51,14 @@ export function SkillsReadSection({
   data,
   verifications,
   onEdit,
+  onEditCert,
+  onDeleteCert,
 }: {
   data: SkillsData
   verifications: Verifications
   onEdit: () => void
+  onEditCert?: (id: string) => void
+  onDeleteCert?: (id: string) => void
 }) {
   const anyVerified = data.certifications.some((c) => verificationFor(c, verifications))
   return (
@@ -95,7 +100,12 @@ export function SkillsReadSection({
                 const v = verificationFor(c, verifications)
                 return (
                   <li key={c.id}>
-                    <button type="button" onClick={onEdit} className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-line/60">
+                    <SwipeRow
+                      bg="bg-card"
+                      leading={onEditCert ? [{ key: 'edit', label: 'Editar', icon: '✎', tone: 'primary', onClick: () => onEditCert(c.id) }] : []}
+                      trailing={onDeleteCert ? [{ key: 'del', label: 'Eliminar', icon: '🗑', tone: 'danger', onClick: () => onDeleteCert(c.id) }] : []}
+                    >
+                    <button type="button" onClick={() => (onEditCert ? onEditCert(c.id) : onEdit())} className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-line/60">
                       <span className="mt-0.5 text-lg" aria-hidden="true">
                         {categoryOf(c.category)?.icon ?? '📄'}
                       </span>
@@ -110,6 +120,7 @@ export function SkillsReadSection({
                       </span>
                       <StatusBadge status={c.status} />
                     </button>
+                    </SwipeRow>
                   </li>
                 )
               })}
@@ -138,13 +149,15 @@ export function SkillsReadSection({
 
 interface FormProps {
   value: SkillsData
+  /** Certificación que aparece abierta al entrar a editar */
+  initialExpanded?: string | null
   verifications: Verifications
   errors: SkillsErrors
   onChange: (v: SkillsData) => void
 }
 
-export function SkillsForm({ value, verifications, errors, onChange }: FormProps) {
-  const [expanded, setExpanded] = useState<string | null>(null)
+export function SkillsForm({ value, initialExpanded = null, verifications, errors, onChange }: FormProps) {
+  const [expanded, setExpanded] = useState<string | null>(initialExpanded)
 
   const toggleCategory = (id: CategoryId) =>
     onChange({

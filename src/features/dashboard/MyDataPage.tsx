@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { RocketIdBadge } from '../../components/RocketIdBadge'
 import { Sheet } from '../../components/Sheet'
+import { useToast } from '../../components/Toast'
 import { useRocketId } from '../auth/useRocketId'
 import { toTitleCaseName } from '../../lib/names'
 import { normalizePhone } from '../../lib/phone'
@@ -27,7 +28,9 @@ export function MyDataPage() {
   const [draft, setDraft] = useState<ProfileForm>(emptyProfile)
   const [errors, setErrors] = useState<ProfileErrors>({})
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const toast = useToast()
+  const setToast = toast.show
+  const [skillsExpand, setSkillsExpand] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -47,21 +50,16 @@ export function MyDataPage() {
     return subscribeVerifications(user.uid, setVerifications)
   }, [user])
 
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 2500)
-    return () => clearTimeout(t)
-  }, [toast])
-
   const section = SECTIONS.find((s) => s.id === editing)
   const dirty = useMemo(() => {
     if (editing === 'skills') return JSON.stringify(skillsDraft) !== JSON.stringify(skills ?? emptySkills)
     return !!profile && !!section && section.keys.some((k) => draft[k] !== profile[k])
   }, [editing, skillsDraft, skills, draft, profile, section])
 
-  const openEditor = (id: SectionId | 'skills') => {
+  const openEditor = (id: SectionId | 'skills', certId: string | null = null) => {
     if (!profile) return
     if (id === 'skills') {
+      setSkillsExpand(certId)
       setSkillsDraft(skills ?? emptySkills)
       setSkillsErrors({ certs: {} })
     } else {
@@ -88,6 +86,29 @@ export function MyDataPage() {
       setToast('No se pudo guardar. Inténtalo de nuevo.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  /** Eliminar una certificación desde la lista (deslizar ←), con "Deshacer" */
+  const deleteCert = async (certId: string) => {
+    if (!user || !skills) return
+    const before = skills
+    const cert = before.certifications.find((c) => c.id === certId)
+    const after = { ...before, certifications: before.certifications.filter((c) => c.id !== certId) }
+    try {
+      await saveSkills(user.uid, after)
+      navigator.vibrate?.(10)
+      syncPublicProfile(user).catch(() => {})
+      setToast(`“${cert?.name ?? 'Certificación'}” eliminada`, {
+        label: 'Deshacer',
+        onClick: () => {
+          saveSkills(user.uid, before)
+            .then(() => syncPublicProfile(user))
+            .catch(() => setToast('No se pudo deshacer'))
+        },
+      })
+    } catch {
+      setToast('No se pudo eliminar. Inténtalo de nuevo.')
     }
   }
 
@@ -177,7 +198,13 @@ export function MyDataPage() {
         <ReadSection key={s.id} title={s.title} icon={s.icon} rows={rowsFor(s.id, profile)} onEdit={() => openEditor(s.id)} />
       ))}
 
-      <SkillsReadSection data={skills ?? emptySkills} verifications={verifications} onEdit={() => openEditor('skills')} />
+      <SkillsReadSection
+        data={skills ?? emptySkills}
+        verifications={verifications}
+        onEdit={() => openEditor('skills')}
+        onEditCert={(id) => openEditor('skills', id)}
+        onDeleteCert={deleteCert}
+      />
 
       <p className="px-4 text-center text-xs text-subtle">🔒 Solo tú puedes ver estos datos.</p>
 
@@ -190,21 +217,19 @@ export function MyDataPage() {
         canSave={dirty}
       >
         {EditForm && <EditForm form={draft} errors={errors} set={set} />}
-        {editing === 'skills' && <SkillsForm value={skillsDraft} verifications={verifications} errors={skillsErrors} onChange={changeSkills} />}
+        {editing === 'skills' && (
+          <SkillsForm
+            key={skillsExpand ?? 'all'}
+            value={skillsDraft}
+            initialExpanded={skillsExpand}
+            verifications={verifications}
+            errors={skillsErrors}
+            onChange={changeSkills}
+          />
+        )}
       </Sheet>
 
-      {/* Toast de confirmación, sobre la navegación inferior */}
-      <div
-        role="status"
-        aria-live="polite"
-        className={`pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 transition-all duration-300 motion-reduce:transition-none ${toast ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}
-      >
-        {toast && (
-          <span className="rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-lg ring-1 ring-white/10">
-            {toast}
-          </span>
-        )}
-      </div>
+      {toast.node}
     </div>
   )
 }

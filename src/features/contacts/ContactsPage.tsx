@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { SwipeRow, type SwipeAction } from '../../components/SwipeRow'
+import { useToast } from '../../components/Toast'
+import { firstName } from '../../lib/names'
 import { MIN_QUERY, parseQuery } from '../../lib/searchTokens'
 import { useAuth } from '../auth/AuthProvider'
-import { subscribeContacts, type Contact } from './contactsApi'
+import { addContact, removeContact, subscribeContacts, type Contact } from './contactsApi'
+import { profileUrl } from './ShareProfile'
 import { PersonRow } from './PersonRow'
 import { ProfileSheet } from './ProfileSheet'
 import { findPerson, looksLikeEmail, normalizeRocketIdInput, searchApprox, type PublicProfile } from './publicProfile'
@@ -32,18 +36,12 @@ export function ContactsPage() {
   const [loading, setLoading] = useState(false)
   const [contacts, setContacts] = useState<Contact[] | null>(null)
   const [openUid, setOpenUid] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const toast = useToast()
 
   useEffect(() => {
     if (!user) return
     return subscribeContacts(user.uid, setContacts)
   }, [user])
-
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 2500)
-    return () => clearTimeout(t)
-  }, [toast])
 
   const text = q.trim()
   const isExact = looksLikeEmail(text) || !!normalizeRocketIdInput(text)
@@ -76,6 +74,54 @@ export function ContactsPage() {
 
   const cordadaUids = useMemo(() => new Set(contacts?.map((c) => c.uid)), [contacts])
   const closeSheet = useCallback(() => setOpenUid(null), [])
+
+  // ---------- Acciones de deslizar ----------
+  type Person = Pick<Contact, 'uid' | 'rocketId' | 'displayName' | 'photoURL'>
+
+  const add = async (p: Person) => {
+    if (!user) return
+    try {
+      await addContact(user.uid, p)
+      navigator.vibrate?.(10)
+      toast.show(`${firstName(p.displayName)} se unió a tu cordada`)
+    } catch {
+      toast.show('No se pudo agregar. Inténtalo de nuevo.')
+    }
+  }
+
+  const remove = async (p: Person) => {
+    if (!user) return
+    try {
+      await removeContact(user.uid, p.uid)
+      navigator.vibrate?.(10)
+      // Deshacer: vuelve a agregarla (si su perfil sigue público)
+      toast.show(`${firstName(p.displayName)} salió de tu cordada`, { label: 'Deshacer', onClick: () => add(p) })
+    } catch {
+      toast.show('No se pudo quitar. Inténtalo de nuevo.')
+    }
+  }
+
+  const sendWhatsApp = (p: Person) => {
+    const text = `Mira el perfil de ${firstName(p.displayName)} en rocketId 🚀 ${profileUrl(p.rocketId)}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
+  }
+
+  const viewAction = (p: Person): SwipeAction => ({ key: 'view', label: 'Perfil', icon: '👤', tone: 'primary', onClick: () => setOpenUid(p.uid) })
+  const removeAction = (p: Person): SwipeAction => ({ key: 'remove', label: 'Quitar', icon: '✕', tone: 'danger', onClick: () => remove(p) })
+
+  const cordadaActions = (c: Contact) => ({
+    leading: [viewAction(c), { key: 'wa', label: 'WhatsApp', icon: '💬', tone: 'whatsapp' as const, onClick: () => sendWhatsApp(c) }],
+    trailing: [removeAction(c)],
+  })
+
+  const hitActions = (h: Hit) => {
+    if (h.uid === user?.uid) return { leading: [viewAction(h)], trailing: [] }
+    const inC = cordadaUids.has(h.uid)
+    return {
+      leading: inC ? [viewAction(h)] : [{ key: 'add', label: 'Agregar', icon: '🪢', tone: 'primary' as const, onClick: () => add(h) }],
+      trailing: inC ? [removeAction(h)] : [],
+    }
+  }
 
   const clear = () => {
     setQ('')
@@ -146,6 +192,7 @@ export function ContactsPage() {
             <ul>
               {hits.map((h) => (
                 <li key={h.uid}>
+                  <SwipeRow {...hitActions(h)}>
                   <PersonRow
                     name={h.displayName}
                     photoURL={h.photoURL}
@@ -154,6 +201,7 @@ export function ContactsPage() {
                     note={h.uid === user?.uid ? 'Tú' : cordadaUids.has(h.uid) ? 'En tu cordada' : undefined}
                     onClick={() => setOpenUid(h.uid)}
                   />
+                  </SwipeRow>
                 </li>
               ))}
             </ul>
@@ -169,9 +217,12 @@ export function ContactsPage() {
       ) : (
         // ---------- Mi cordada ----------
         <section>
-          <h2 className="px-1 pb-1 text-base font-bold text-fg">
-            Mi cordada {contacts?.length ? <span className="font-normal text-muted">· {contacts.length}</span> : null}
-          </h2>
+          <div className="flex items-baseline justify-between px-1 pb-1">
+            <h2 className="text-base font-bold text-fg">
+              Mi cordada {contacts?.length ? <span className="font-normal text-muted">· {contacts.length}</span> : null}
+            </h2>
+            {!!contacts?.length && <span className="text-xs text-subtle">Desliza ← → para ver acciones</span>}
+          </div>
           {contacts === null ? (
             <RowsSkeleton />
           ) : contacts.length === 0 ? (
@@ -191,6 +242,7 @@ export function ContactsPage() {
             <ul>
               {contacts.map((c) => (
                 <li key={c.uid}>
+                  <SwipeRow {...cordadaActions(c)}>
                   <PersonRow
                     name={c.displayName}
                     photoURL={c.photoURL}
@@ -198,6 +250,7 @@ export function ContactsPage() {
                     isMock={c.uid.startsWith('mock_')}
                     onClick={() => setOpenUid(c.uid)}
                   />
+                  </SwipeRow>
                 </li>
               ))}
             </ul>
@@ -205,17 +258,9 @@ export function ContactsPage() {
         </section>
       )}
 
-      <ProfileSheet uid={openUid} inCordada={!!openUid && cordadaUids.has(openUid)} onClose={closeSheet} onToast={setToast} />
+      <ProfileSheet uid={openUid} inCordada={!!openUid && cordadaUids.has(openUid)} onClose={closeSheet} onToast={toast.show} />
 
-      <div
-        role="status"
-        aria-live="polite"
-        className={`pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 transition-all duration-300 motion-reduce:transition-none ${toast ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}
-      >
-        {toast && (
-          <span className="rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-lg ring-1 ring-white/10">{toast}</span>
-        )}
-      </div>
+      {toast.node}
     </div>
   )
 }

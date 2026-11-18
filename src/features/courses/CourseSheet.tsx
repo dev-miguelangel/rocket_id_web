@@ -17,12 +17,14 @@ interface Props {
   profile: ProfileForm
   skills: SkillsData
   onClose: () => void
+  /** Abrir directamente en un paso (ej. "consent" desde el gesto Postular) */
+  initialStep?: 'detail' | 'consent'
 }
 
 const primaryBtn =
   'h-12 w-full rounded-xl bg-primary text-base font-semibold text-white transition active:bg-primary-dark disabled:opacity-50'
 
-export function CourseSheet({ course, application, profile, skills, onClose }: Props) {
+export function CourseSheet({ course, application, profile, skills, onClose, initialStep = 'detail' }: Props) {
   const { user } = useAuth()
   const rocketId = useRocketId()
   const navigate = useNavigate()
@@ -35,7 +37,7 @@ export function CourseSheet({ course, application, profile, skills, onClose }: P
 
   if (course && course !== shown) {
     setShown(course)
-    setStep('detail')
+    setStep(application ? 'detail' : initialStep)
     setAccepted(false)
     setError(null)
   }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Segmented } from '../../components/form'
+import { SwipeRow } from '../../components/SwipeRow'
 import { useAuth } from '../auth/AuthProvider'
 import { subscribeProfile } from '../profile/profileApi'
 import { emptyProfile, type ProfileForm } from '../profile/schema'
@@ -18,6 +19,11 @@ export function CoursesPage() {
   const [tab, setTab] = useState<Tab>('explore')
   const [filter, setFilter] = useState<CategoryId | 'all'>('all')
   const [selected, setSelected] = useState<Course | null>(null)
+  const [startStep, setStartStep] = useState<'detail' | 'consent'>('detail')
+  const open = (c: Course, step: 'detail' | 'consent' = 'detail') => {
+    setStartStep(step)
+    setSelected(c)
+  }
   const [apps, setApps] = useState<Application[] | null>(null)
   const [profile, setProfile] = useState<ProfileForm>(emptyProfile)
   const [skills, setSkills] = useState<SkillsData>(emptySkills)
@@ -87,7 +93,16 @@ export function CoursesPage() {
         <ul className="space-y-3">
           {courses.map((c) => (
             <li key={c.id}>
-              <CourseCard course={c} application={appByCourse.get(c.id)} onOpen={() => setSelected(c)} />
+              <SwipeRow
+                className="rounded-2xl"
+                leading={
+                  appByCourse.has(c.id)
+                    ? [{ key: 'view', label: 'Ver', icon: '👁', tone: 'primary', onClick: () => open(c) }]
+                    : [{ key: 'apply', label: 'Postular', icon: '✍️', tone: 'primary', onClick: () => open(c, 'consent') }]
+                }
+              >
+                <CourseCard course={c} application={appByCourse.get(c.id)} onOpen={() => open(c)} />
+              </SwipeRow>
             </li>
           ))}
         </ul>
@@ -99,6 +114,7 @@ export function CoursesPage() {
         profile={profile}
         skills={skills}
         onClose={close}
+        initialStep={startStep}
       />
     </div>
   )

@@ -33,7 +33,7 @@ export function subscribeContacts(uid: string, cb: (c: Contact[]) => void) {
   )
 }
 
-export function addContact(uid: string, p: PublicProfile) {
+export function addContact(uid: string, p: Pick<PublicProfile, 'uid' | 'rocketId' | 'displayName' | 'photoURL'>) {
   return setDoc(doc(contactsCol(uid), p.uid), {
     uid: p.uid,
     rocketId: p.rocketId,
