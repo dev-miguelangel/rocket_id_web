@@ -6,6 +6,7 @@ import { FAQ, FEATURES, HERO, PAINS, PRIVACY, STEPS, STORIES, USE_CASES } from '
 import { SceneIllustration } from './illustrations'
 import { PhoneFrame, SCREENS, ScreenFicha, ScreenHome, ScreenProfile } from './mockups'
 import { useInstallPrompt } from './useInstallPrompt'
+import { useVisitCounter } from './useVisitCounter'
 
 /**
  * Landing de rocketId. Se muestra en "/" a quien no ha iniciado sesión, y siempre en "/conoce".
@@ -45,6 +46,7 @@ export function LandingPage() {
             <Logo className="size-6 rounded-md" /> rocketId
           </span>
           <span>Tu identidad outdoor · Hecho en Chile 🇨🇱</span>
+          <VisitCount />
         </div>
       </footer>
     </div>
@@ -385,5 +387,15 @@ function FinalCta({ ctaTo, ctaLabel }: { ctaTo: string; ctaLabel: string }) {
         </div>
       </div>
     </section>
+  )
+}
+
+/** Contador discreto en el pie de página */
+function VisitCount() {
+  const visits = useVisitCounter()
+  return (
+    <span className="min-h-5 text-xs text-subtle tabular-nums" aria-live="off">
+      {visits !== null && `${visits.toLocaleString('es-CL')} ${visits === 1 ? 'visita' : 'visitas'}`}
+    </span>
   )
 }

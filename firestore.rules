@@ -203,6 +203,14 @@ service cloud.firestore {
     }
 
     // Índice de búsqueda por correo: emailIndex/{sha256(correo en minúsculas)} → { uid }.
+    // Contador de visitas de la landing: lectura pública; solo se puede sumar de a 1
+    match /stats/landing {
+      allow get: if true;
+      allow create: if request.resource.data.keys().hasOnly(['visits']) && request.resource.data.visits == 1;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['visits'])
+        && request.resource.data.visits == resource.data.visits + 1;
+    }
+
     // El correo nunca se guarda en texto; solo encuentra a alguien quien conoce el correo exacto.
     // Solo puedes indexar TU correo verificado (el hash se recalcula aquí).
     match /emailIndex/{hash} {

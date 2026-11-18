@@ -15,7 +15,7 @@ export const PAINS = [
     icon: '💬',
     title: 'La planilla de siempre',
     pain: 'Antes de cada salida alguien pide RUT, contacto de emergencia y alergias por WhatsApp… y todo se pierde en el chat.',
-    fix: 'Con rocketId tu ficha ya está lista. La compartes con un toque, solo con quien organiza.',
+    fix: 'Con rocketId tu ficha ya está lista. La compartes con un toque, solo con quien organiza y su equipo de seguridad.',
   },
   {
     icon: '🩹',
