@@ -30,7 +30,7 @@ const TONE: Record<string, string> = {
   info: 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300',
 }
 
-function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status }: { status: string }) {
   const s = statusOf(status)
   if (!s) return null
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${TONE[s.tone]}`}>{s.label}</span>

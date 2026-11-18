@@ -23,6 +23,7 @@ export function HomePage() {
       <div className="grid grid-cols-2 gap-3">
         <ShortcutCard to="/mis-datos" title="Mis datos" subtitle="Revisa y edita tu perfil" />
         <ShortcutCard to="/cursos" title="Cursos" subtitle="Fórmate y postula" />
+        <ShortcutCard to="/cordada" title="Cordada" subtitle="Tus compañeros de salida" />
         <ShortcutCard to="/eventos" title="Eventos" subtitle="Próximas actividades" />
       </div>
     </div>

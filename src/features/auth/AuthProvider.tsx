@@ -9,6 +9,7 @@ import {
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { auth, googleProvider } from '../../lib/firebase'
 import { ensureRocketId } from '../../lib/rocketId'
+import { syncPublicProfile } from '../contacts/publicProfile'
 import { upsertUserProfile } from './userProfile'
 
 interface AuthContextValue {
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (u)
         upsertUserProfile(u)
           .then(() => ensureRocketId(u.uid))
+          .then(() => syncPublicProfile(u))
           .catch((e) => console.error('upsertUserProfile/ensureRocketId', e))
     })
   }, [])

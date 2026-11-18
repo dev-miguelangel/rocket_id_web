@@ -5,6 +5,7 @@ import { useRocketId } from '../auth/useRocketId'
 import { toTitleCaseName } from '../../lib/names'
 import { normalizePhone } from '../../lib/phone'
 import { useAuth } from '../auth/AuthProvider'
+import { syncPublicProfile } from '../contacts/publicProfile'
 import { saveProfile, subscribeProfile } from '../profile/profileApi'
 import { CRITICAL_FIELDS, emptyProfile, formatRut, validate, type ProfileErrors, type ProfileForm } from '../profile/schema'
 import { ContactForm, HealthForm, IdentityForm, ReadSection, SECTIONS, rowsFor, type SectionId } from '../profile/sections'
@@ -75,8 +76,11 @@ export function MyDataPage() {
     setSaving(true)
     try {
       // Offline: Firestore lo deja en cola local y sincroniza al volver la red
-      if (navigator.onLine) await pending
-      else pending.catch(() => setToast('No se pudo sincronizar'))
+      if (navigator.onLine) {
+        await pending
+        // Mantiene al día lo que otras personas ven al buscarte (nombre y conocimientos)
+        if (user) syncPublicProfile(user).catch((e) => console.warn('syncPublicProfile', e))
+      } else pending.catch(() => setToast('No se pudo sincronizar'))
       navigator.vibrate?.(10)
       setToast(navigator.onLine ? 'Cambios guardados' : 'Guardado · se sincronizará con conexión')
       setEditing(null)

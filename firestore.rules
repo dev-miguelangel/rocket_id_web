@@ -39,7 +39,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'displayName', 'email', 'photoURL', 'createdAt', 'lastLoginAt', 'updatedAt',
           'fullName', 'docType', 'docNumber', 'birthDate', 'phone', 'contactEmail',
-          'rocketId',
+          'rocketId', 'discoverable',
           'bio' // legado del primer MVP
         ])
         && rocketIdOk(uid)
@@ -52,8 +52,21 @@ service cloud.firestore {
             || request.resource.data.docNumber.matches('^[0-9]{1,2}[.][0-9]{3}[.][0-9]{3}-[0-9K]$'))
         && optStr(request.resource.data, 'birthDate', 10)
         && optStr(request.resource.data, 'phone', 20)
-        && optStr(request.resource.data, 'contactEmail', 120);
+        && optStr(request.resource.data, 'contactEmail', 120)
+        && (!('discoverable' in request.resource.data) || request.resource.data.discoverable is bool);
       allow delete: if false;
+
+      // Mi cordada: lista privada de contactos. Solo se puede agregar a personas con perfil público.
+      match /contacts/{cid} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && cid != uid
+          && request.resource.data.keys().hasOnly(['uid', 'rocketId', 'displayName', 'photoURL', 'addedAt'])
+          && request.resource.data.uid == cid
+          && exists(/databases/$(database)/documents/publicProfiles/$(cid))
+          && optStr(request.resource.data, 'displayName', 120)
+          && optStr(request.resource.data, 'rocketId', 7);
+      }
 
       // Conocimientos y certificaciones outdoor: users/{uid}/private/skills
       match /private/skills {
@@ -72,7 +85,9 @@ service cloud.firestore {
       // La persona solo puede leerlas; nadie puede escribirlas desde el cliente.
       // TODO: permitir escritura a instituciones (custom claim) cuando exista su app.
       match /private/verifications {
-        allow read: if isOwner(uid);
+        // Legible por cualquier persona autenticada: las insignias de los perfiles públicos se
+        // calculan con estas verificaciones (no con lo que declara cada persona).
+        allow get: if request.auth != null;
         allow write: if false;
       }
 
@@ -102,7 +117,8 @@ service cloud.firestore {
     // Solo se puede crear (si ya existe, el set cuenta como update y se rechaza → colisión),
     // una vez por persona, y nunca modificar ni borrar.
     match /rocketIds/{code} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      // get (no list): buscar a alguien por su rocketId exacto
+      allow get: if request.auth != null;
       allow create: if request.auth != null
         && code.matches('^[BCDFGHJKLMNPQRSTVWXYZ][AEIOU]-[0-9]{4}$')
         && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
@@ -113,6 +129,35 @@ service cloud.firestore {
         // …y en el mismo lote lo escribe en su perfil
         && getAfter(userPath(request.auth.uid)).data.get('rocketId', '') == code;
       allow update, delete: if false;
+    }
+
+    // Perfil público: nombre, avatar, rocketId y conocimientos. Se puede leer uno a uno (get), nunca listar.
+    match /publicProfiles/{uid} {
+      allow get: if request.auth != null;
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['uid', 'rocketId', 'displayName', 'photoURL', 'skills', 'updatedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.rocketId == get(userPath(uid)).data.get('rocketId', '')
+        && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 120
+        && (request.resource.data.photoURL == null
+            || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 500))
+        && request.resource.data.skills is map
+        && request.resource.data.skills.categories is list && request.resource.data.skills.categories.size() <= 10
+        && request.resource.data.skills.certifications is list && request.resource.data.skills.certifications.size() <= 20;
+      allow delete: if isOwner(uid);
+    }
+
+    // Índice de búsqueda por correo: emailIndex/{sha256(correo en minúsculas)} → { uid }.
+    // El correo nunca se guarda en texto; solo encuentra a alguien quien conoce el correo exacto.
+    // Solo puedes indexar TU correo verificado (el hash se recalcula aquí).
+    match /emailIndex/{hash} {
+      allow get: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.token.email_verified == true
+        && hash == hashing.sha256(request.auth.token.email.lower()).toHexString().lower()
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
     }
 
     // Postulaciones a cursos: applications/{uid}_{courseId}

@@ -10,6 +10,7 @@ const tabs = [
   { to: '/', label: 'Inicio', icon: HomeIcon, end: true },
   { to: '/mis-datos', label: 'Mis datos', icon: UserIcon, end: false },
   { to: '/cursos', label: 'Cursos', icon: CapIcon, end: false },
+  { to: '/cordada', label: 'Cordada', icon: PeopleIcon, end: false },
   { to: '/eventos', label: 'Eventos', icon: CalendarIcon, end: false },
 ] as const
 
@@ -49,7 +50,7 @@ export function DashboardLayout() {
                 {({ isActive }) => (
                   <>
                     <span
-                      className={`flex h-8 w-14 items-center justify-center rounded-full transition ${
+                      className={`flex h-8 w-12 items-center justify-center rounded-full transition ${
                         isActive ? 'bg-primary/10' : ''
                       }`}
                     >
@@ -191,6 +192,16 @@ function UserIcon() {
     <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+    </svg>
+  )
+}
+function PeopleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M17 14c2.6 0 4.5 1.8 4.5 4.5" />
     </svg>
   )
 }
