@@ -171,6 +171,13 @@ export async function createEvent(me: Me, input: EventInput) {
   return ref.id
 }
 
+/** Editar (solo organizador). Conserva organizador, estado y fecha de creación. */
+export async function updateEvent(eid: string, input: EventInput) {
+  const batch = writeBatch(db)
+  batch.update(eventRef(eid), eventFields(input))
+  await batch.commit()
+}
+
 export async function cancelEvent(eid: string) {
   const batch = writeBatch(db)
   batch.update(eventRef(eid), { status: 'cancelled' })

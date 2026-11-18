@@ -16,36 +16,54 @@ export function EventsPage() {
   const [mine, setMine] = useState<{ event: EventDoc; me: Participant }[] | null>(null)
   const [publicEvents, setPublicEvents] = useState<EventDoc[] | null>(null)
   const [creating, setCreating] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<{ mine?: boolean; explore?: boolean }>({})
+  const [reload, setReload] = useState(0)
   const closeForm = useCallback(() => setCreating(false), [])
+
+  // Reintenta automáticamente una vez (p. ej. mientras un índice termina de construirse)
+  const withRetry = <T,>(fn: () => Promise<T>) => fn().catch(() => new Promise<T>((res, rej) => setTimeout(() => fn().then(res, rej), 2500)))
 
   useEffect(() => {
     if (!user) return
     let alive = true
-    fetchMyEvents(user.uid)
-      .then((r) => alive && setMine(r))
+    withRetry(() => fetchMyEvents(user.uid))
+      .then((r) => {
+        if (!alive) return
+        setMine(r)
+        setError((e) => ({ ...e, mine: false }))
+      })
       .catch((e) => {
         console.error('fetchMyEvents', e)
         if (alive) {
-          setMine([])
-          setError(true)
+          setMine((m) => m ?? [])
+          setError((x) => ({ ...x, mine: true }))
         }
       })
     return () => {
       alive = false
     }
-  }, [user])
+  }, [user, reload])
 
   useEffect(() => {
-    if (tab !== 'explore' || publicEvents) return
-    fetchPublicEvents()
-      .then(setPublicEvents)
+    if (tab !== 'explore') return
+    let alive = true
+    withRetry(fetchPublicEvents)
+      .then((r) => {
+        if (!alive) return
+        setPublicEvents(r)
+        setError((e) => ({ ...e, explore: false }))
+      })
       .catch((e) => {
         console.error('fetchPublicEvents', e)
-        setPublicEvents([])
-        setError(true)
+        if (alive) {
+          setPublicEvents((p) => p ?? [])
+          setError((x) => ({ ...x, explore: true }))
+        }
       })
-  }, [tab, publicEvents])
+    return () => {
+      alive = false
+    }
+  }, [tab, reload])
 
   const upcoming = (mine ?? []).filter((r) => !isPast(r.event) && r.me.status !== 'declined')
   const past = (mine ?? []).filter((r) => isPast(r.event) || r.me.status === 'declined')
@@ -63,7 +81,14 @@ export function EventsPage() {
         onChange={setTab}
       />
 
-      {error && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">Algunos eventos no se pudieron cargar. Revisa tu conexión.</p>}
+      {error[tab] && (
+        <div className="flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+          <span className="flex-1">No se pudieron cargar los eventos. Revisa tu conexión.</span>
+          <button type="button" onClick={() => setReload((n) => n + 1)} className="h-9 shrink-0 rounded-lg bg-amber-200/60 px-3 font-semibold active:bg-amber-200 dark:bg-amber-500/20">
+            Reintentar
+          </button>
+        </div>
+      )}
 
       {tab === 'mine' ? (
         mine === null ? (

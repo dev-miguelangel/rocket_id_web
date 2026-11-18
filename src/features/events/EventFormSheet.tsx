@@ -2,8 +2,8 @@ import { useCallback, useId, useState, type FormEvent } from 'react'
 import { Field, Segmented, dateInputClass, inputClass, textareaClass } from '../../components/form'
 import { BottomSheet, Sheet } from '../../components/Sheet'
 import { SKILL_CATEGORIES, categoryOf, type CategoryId } from '../skills/schema'
-import { createEvent, type EventInput } from './eventsApi'
-import { EVENT_ACTIVITIES, PUBLIC_RESPONSIBILITIES, type Requirement, type Visibility } from './schema'
+import { createEvent, updateEvent, type EventInput } from './eventsApi'
+import { EVENT_ACTIVITIES, PUBLIC_RESPONSIBILITIES, type EventDoc, type Requirement, type Visibility } from './schema'
 import { useMe } from './useMe'
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -20,20 +20,31 @@ function defaults() {
 
 type Errors = Partial<Record<'title' | 'start' | 'end' | 'location' | 'general', string>>
 
-export function EventFormSheet({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
+interface Props {
+  open: boolean
+  onClose: () => void
+  /** Al crear: id del nuevo evento. Al editar: id del evento editado. */
+  onCreated: (id: string) => void
+  /** Si viene, el formulario edita este evento en vez de crear uno nuevo */
+  event?: EventDoc
+}
+
+export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
   const me = useMe()
   const d = defaults()
-  const [activity, setActivity] = useState<string>('trekking')
-  const [title, setTitle] = useState('')
-  const [start, setStart] = useState(d.start)
-  const [end, setEnd] = useState(d.end)
-  const [location, setLocation] = useState('')
-  const [meetingPoint, setMeetingPoint] = useState('')
-  const [description, setDescription] = useState('')
-  const [capacity, setCapacity] = useState('')
-  const [requirements, setRequirements] = useState<Requirement[]>([])
-  const [visibility, setVisibility] = useState<Visibility>('private')
-  const [publicAck, setPublicAck] = useState(false)
+  const editing = !!event
+  const [activity, setActivity] = useState<string>(event?.activity ?? 'trekking')
+  const [title, setTitle] = useState(event?.title ?? '')
+  const [start, setStart] = useState(event ? toLocalInput(event.startAt) : d.start)
+  const [end, setEnd] = useState(event ? toLocalInput(event.endAt) : d.end)
+  const [location, setLocation] = useState(event?.location ?? '')
+  const [meetingPoint, setMeetingPoint] = useState(event?.meetingPoint ?? '')
+  const [description, setDescription] = useState(event?.description ?? '')
+  const [capacity, setCapacity] = useState(event?.capacity ? String(event.capacity) : '')
+  const [requirements, setRequirements] = useState<Requirement[]>(event?.requirements ?? [])
+  const [visibility, setVisibility] = useState<Visibility>(event?.visibility ?? 'private')
+  // Un evento que ya era público ya aceptó las responsabilidades
+  const [publicAck, setPublicAck] = useState(event?.visibility === 'public')
   const [ackOpen, setAckOpen] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
   const [saving, setSaving] = useState(false)
@@ -64,7 +75,7 @@ export function EventFormSheet({ open, onClose, onCreated }: { open: boolean; on
     if (!title.trim()) errs.title = 'Ponle un nombre a la salida.'
     if (Number.isNaN(s.getTime())) errs.start = 'Indica cuándo empieza.'
     if (Number.isNaN(en.getTime()) || en < s) errs.end = 'Debe terminar después de empezar.'
-    if (s.getTime() < Date.now() - 3_600_000) errs.start = 'La fecha ya pasó.'
+    if (!editing && s.getTime() < Date.now() - 3_600_000) errs.start = 'La fecha ya pasó.'
     if (!location.trim()) errs.location = 'Indica el lugar o la ruta.'
     if (visibility === 'public' && !publicAck) errs.general = 'Para publicar debes aceptar las responsabilidades.'
     setErrors(errs)
@@ -84,13 +95,19 @@ export function EventFormSheet({ open, onClose, onCreated }: { open: boolean; on
         requirements,
         publicAck,
       }
-      const id = await createEvent(me, input)
-      navigator.vibrate?.(10)
-      reset()
-      onCreated(id)
+      if (event) {
+        await updateEvent(event.id, input)
+        navigator.vibrate?.(10)
+        onCreated(event.id)
+      } else {
+        const id = await createEvent(me, input)
+        navigator.vibrate?.(10)
+        reset()
+        onCreated(id)
+      }
     } catch (err) {
-      console.error('createEvent', err)
-      setErrors({ general: 'No se pudo crear el evento. Inténtalo de nuevo.' })
+      console.error(editing ? 'updateEvent' : 'createEvent', err)
+      setErrors({ general: editing ? 'No se pudieron guardar los cambios.' : 'No se pudo crear el evento. Inténtalo de nuevo.' })
     } finally {
       setSaving(false)
     }
@@ -103,7 +120,7 @@ export function EventFormSheet({ open, onClose, onCreated }: { open: boolean; on
 
   return (
     <>
-      <Sheet open={open} title="Nuevo evento" onCancel={onClose} onSubmit={submit} saving={saving} canSave={!!me}>
+      <Sheet open={open} title={editing ? 'Editar evento' : 'Nuevo evento'} onCancel={onClose} onSubmit={submit} saving={saving} canSave={!!me}>
         {!me && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">Cargando tu perfil…</p>}
 
         <div className="rounded-2xl border border-line bg-card p-4">

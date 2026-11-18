@@ -23,6 +23,7 @@ import {
   viewSensitive,
   type SensitiveData,
 } from './eventsApi'
+import { EventFormSheet } from './EventFormSheet'
 import { Chip, ParticipantChip, VisibilityChip } from './parts'
 import {
   EVENT_CONSENT_TEXT,
@@ -58,9 +59,10 @@ export function EventDetailPage() {
   const [event, setEvent] = useState<EventDoc | null | undefined>(undefined)
   const [participants, setParticipants] = useState<Participant[] | null>(null)
   const [profiles, setProfiles] = useState<Record<string, SearchResult>>({})
-  const [sheet, setSheet] = useState<null | 'consent' | 'invite' | 'cancel'>(null)
+  const [sheet, setSheet] = useState<null | 'consent' | 'invite' | 'cancel' | 'edit'>(null)
   const [openP, setOpenP] = useState<Participant | null>(null)
   const [busy, setBusy] = useState(false)
+  const [editSession, setEditSession] = useState(0)
   const closeSheet = useCallback(() => setSheet(null), [])
   const closeP = useCallback(() => setOpenP(null), [])
 
@@ -184,8 +186,20 @@ export function EventDetailPage() {
         <div className="flex items-center gap-2 text-sm opacity-90">
           <span aria-hidden="true">{a.icon}</span>
           {a.label}
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-2">
             <VisibilityChip visibility={event.visibility} />
+            {isOrganizer && !cancelled && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditSession((n) => n + 1)
+                  setSheet('edit')
+                }}
+                className="h-8 rounded-full bg-white/20 px-3 text-xs font-semibold text-white active:bg-white/30"
+              >
+                ✎ Editar
+              </button>
+            )}
           </span>
         </div>
         <h2 className={`mt-2 text-2xl leading-tight font-bold ${cancelled ? 'line-through opacity-70' : ''}`}>{event.title}</h2>
@@ -277,6 +291,18 @@ export function EventDetailPage() {
       )}
 
       {/* ---------- Hojas ---------- */}
+      {isOrganizer && (
+        <EventFormSheet
+          key={editSession}
+          open={sheet === 'edit'}
+          event={event}
+          onClose={closeSheet}
+          onCreated={() => {
+            setSheet(null)
+            toast.show('Cambios guardados')
+          }}
+        />
+      )}
       <ConsentSheet open={sheet === 'consent'} event={event} busy={busy} onClose={closeSheet} onConfirm={doConfirm} />
       <InviteSheet open={sheet === 'invite'} event={event} participants={participants ?? []} onClose={closeSheet} onInvited={(n) => toast.show(`Invitación enviada a ${n}`)} />
       <BottomSheet
