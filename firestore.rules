@@ -75,6 +75,27 @@ service cloud.firestore {
       }
     }
 
+    // Postulaciones a cursos: applications/{uid}_{courseId}
+    // La persona crea (una sola vez por curso) y lee las suyas. No puede editarlas ni borrarlas:
+    // el estado (sent → seen → accepted/rejected) lo cambiará la institución desde su app.
+    match /applications/{appId} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && appId == request.auth.uid + '_' + request.resource.data.courseId
+        && request.resource.data.keys().hasOnly(
+          ['uid', 'courseId', 'courseTitle', 'providerName', 'status', 'createdAt', 'consent', 'applicant'])
+        && request.resource.data.status == 'sent'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.consent.keys().hasOnly(['version', 'acceptedAt'])
+        && request.resource.data.consent.acceptedAt == request.time
+        && request.resource.data.courseId is string && request.resource.data.courseId.size() <= 100
+        && request.resource.data.applicant is map
+        && request.resource.data.applicant.certifications is list
+        && request.resource.data.applicant.certifications.size() <= 20;
+      allow update, delete: if false;
+    }
+
     // Todo lo demás denegado por defecto
     match /{document=**} {
       allow read, write: if false;

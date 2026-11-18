@@ -9,6 +9,7 @@ import { AuthProvider } from './features/auth/AuthProvider'
 import { LoginPage } from './features/auth/LoginPage'
 import { ProtectedRoute, PublicOnlyRoute } from './features/auth/RouteGuards'
 import { DashboardLayout } from './features/dashboard/DashboardLayout'
+import { CoursesPage } from './features/courses/CoursesPage'
 import { EventsPage } from './features/dashboard/EventsPage'
 import { HomePage } from './features/dashboard/HomePage'
 import { MyDataPage } from './features/dashboard/MyDataPage'
@@ -26,6 +27,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <HomePage /> },
           { path: 'mis-datos', element: <MyDataPage /> },
+          { path: 'cursos', element: <CoursesPage /> },
           { path: 'eventos', element: <EventsPage /> },
         ],
       },

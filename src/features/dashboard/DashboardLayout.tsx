@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthProvider'
 const tabs = [
   { to: '/', label: 'Inicio', icon: HomeIcon, end: true },
   { to: '/mis-datos', label: 'Mis datos', icon: UserIcon, end: false },
+  { to: '/cursos', label: 'Cursos', icon: CapIcon, end: false },
   { to: '/eventos', label: 'Eventos', icon: CalendarIcon, end: false },
 ] as const
 
@@ -186,6 +187,14 @@ function UserIcon() {
     <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+    </svg>
+  )
+}
+function CapIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 9l10-5 10 5-10 5z" />
+      <path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5M22 9v6" />
     </svg>
   )
 }
