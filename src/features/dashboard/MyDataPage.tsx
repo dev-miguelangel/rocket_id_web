@@ -7,6 +7,7 @@ import { toTitleCaseName } from '../../lib/names'
 import { normalizePhone } from '../../lib/phone'
 import { useAuth } from '../auth/AuthProvider'
 import { syncPublicProfile } from '../contacts/publicProfile'
+import { refreshSharedFichas } from '../events/eventsApi'
 import { saveProfile, subscribeProfile } from '../profile/profileApi'
 import { CRITICAL_FIELDS, emptyProfile, formatRut, validate, type ProfileErrors, type ProfileForm } from '../profile/schema'
 import { ContactForm, HealthForm, IdentityForm, ReadSection, SECTIONS, rowsFor, type SectionId } from '../profile/sections'
@@ -78,6 +79,8 @@ export function MyDataPage() {
         await pending
         // Mantiene al día lo que otras personas ven al buscarte (nombre y conocimientos)
         if (user) syncPublicProfile(user).catch((e) => console.warn('syncPublicProfile', e))
+        // …y la ficha que compartiste en eventos donde estás confirmado
+        if (user && editing !== 'skills') refreshSharedFichas(user.uid).catch((e) => console.warn('refreshSharedFichas', e))
       } else pending.catch(() => setToast('No se pudo sincronizar'))
       navigator.vibrate?.(10)
       setToast(navigator.onLine ? 'Cambios guardados' : 'Guardado · se sincronizará con conexión')

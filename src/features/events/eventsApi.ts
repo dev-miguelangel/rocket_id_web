@@ -26,6 +26,7 @@ import {
   type ParticipantStatus,
   type Requirement,
   type Visibility,
+  sensitiveWindowOpen,
 } from './schema'
 
 const eventsCol = collection(db, 'events')
@@ -288,6 +289,51 @@ function loadOwnProfile(uid: string) {
   })
 }
 
+const sensitiveFields = (p: ProfileForm) => ({
+  fullName: p.fullName,
+  docType: p.docType,
+  docNumber: p.docNumber,
+  birthDate: p.birthDate,
+  phone: p.phone,
+  emergencyName: p.emergencyName,
+  emergencyRelationship: p.emergencyRelationship,
+  emergencyPhone: p.emergencyPhone,
+  insuranceSystem: p.insuranceSystem,
+  insuranceDetail: p.insuranceDetail,
+  bloodType: p.bloodType,
+  allergies: p.allergies,
+  conditions: p.conditions,
+  medications: p.medications,
+  updatedAt: serverTimestamp(),
+})
+
+/**
+ * Mantiene al día la ficha compartida en los eventos donde la persona sigue confirmada
+ * (y que aún no cierran el acceso). Se llama al guardar Mis datos y al abrir la app.
+ * Devuelve cuántos eventos se actualizaron.
+ */
+export async function refreshSharedFichas(uid: string): Promise<number> {
+  const rows = await getDocs(query(collectionGroup(db, 'participants'), where('uid', '==', uid), limit(100)))
+  const targets = rows.docs.filter((d) => d.data().status === 'confirmed' && d.data().role === 'participant')
+  if (!targets.length) return 0
+  const events = await Promise.all(targets.map((d) => getDoc(d.ref.parent.parent!).then((e) => (e.exists() ? parseEvent(e.id, e.data()) : null))))
+  const live = events.filter((e): e is EventDoc => !!e && e.status === 'published' && sensitiveWindowOpen(e))
+  if (!live.length) return 0
+  const p = await loadOwnProfile(uid)
+  const emergencyComplete = CRITICAL_FIELDS.every(({ key }) => !!p[key].trim())
+  const data = sensitiveFields(p)
+  // Cada evento: ficha + indicador (2 escrituras); lotes de 200
+  for (let i = 0; i < live.length; i += 200) {
+    const batch = writeBatch(db)
+    for (const e of live.slice(i, i + 200)) {
+      batch.set(sensitiveRef(e.id, uid), data)
+      batch.update(participantRef(e.id, uid), { emergencyComplete, updatedAt: serverTimestamp() })
+    }
+    await batch.commit()
+  }
+  return live.length
+}
+
 /**
  * Confirmar asistencia (o unirse a un evento público / por enlace) con consentimiento:
  * guarda el estado y una copia de la ficha de emergencia que solo el organizador puede ver.
@@ -313,23 +359,7 @@ export async function confirmAttendance(event: EventDoc, me: Me, alreadyParticip
       role: 'participant',
       ...base,
     })
-  batch.set(sensitiveRef(eid, me.uid), {
-    fullName: p.fullName,
-    docType: p.docType,
-    docNumber: p.docNumber,
-    birthDate: p.birthDate,
-    phone: p.phone,
-    emergencyName: p.emergencyName,
-    emergencyRelationship: p.emergencyRelationship,
-    emergencyPhone: p.emergencyPhone,
-    insuranceSystem: p.insuranceSystem,
-    insuranceDetail: p.insuranceDetail,
-    bloodType: p.bloodType,
-    allergies: p.allergies,
-    conditions: p.conditions,
-    medications: p.medications,
-    updatedAt: serverTimestamp(),
-  })
+  batch.set(sensitiveRef(eid, me.uid), sensitiveFields(p))
   // Aviso al organizador: confirmó (venía invitado o había dicho que no) o se unió (enlace/público)
   if (event.organizerUid !== me.uid)
     batch.set(newNotifRef(event.organizerUid), notificationData(alreadyParticipant ? 'participant_confirmed' : 'participant_joined', event, me))

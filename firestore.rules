@@ -275,12 +275,19 @@ service cloud.firestore {
               && request.resource.data.consent.acceptedAt == request.time
               && get(eventPath(eid)).data.status == 'published')
           );
-        // Solo la propia persona cambia su estado (confirmar con consentimiento / rechazar)
+        // Solo la propia persona cambia su estado (confirmar con consentimiento / rechazar)…
         allow update: if request.auth != null && pid == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'emergencyComplete', 'consent', 'updatedAt'])
-          && request.resource.data.status in ['confirmed', 'declined']
           && resource.data.role == 'participant'
-          && (request.resource.data.status == 'declined' || request.resource.data.consent.acceptedAt == request.time);
+          && (
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'emergencyComplete', 'consent', 'updatedAt'])
+              && request.resource.data.status in ['confirmed', 'declined']
+              && request.resource.data.emergencyComplete is bool
+              && (request.resource.data.status == 'declined' || request.resource.data.consent.acceptedAt == request.time))
+            // …o, ya confirmada, mantiene al día el indicador de ficha completa (sin tocar estado ni consentimiento)
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emergencyComplete', 'updatedAt'])
+              && resource.data.status == 'confirmed'
+              && request.resource.data.emergencyComplete is bool)
+          );
         // Salir (la propia persona) o quitar (el organizador); el organizador no se quita a sí mismo
         allow delete: if request.auth != null && resource.data.role == 'participant'
           && (pid == request.auth.uid || isEventOrganizer(eid));
