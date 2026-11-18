@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { Logo } from '../../components/Logo'
 import { isFirebaseConfigured } from '../../lib/firebase'
 import { useAuth } from './AuthProvider'
@@ -50,6 +51,13 @@ export function LoginPage() {
         <p className="mt-4 text-center text-xs text-subtle">
           Al continuar aceptas los términos de uso y la política de privacidad.
         </p>
+        <Link
+          to="/conoce"
+          className="mt-4 flex h-11 items-center justify-center gap-1.5 rounded-xl text-base font-medium text-primary-text active:bg-line/60"
+        >
+          ¿Qué es rocketId? Conoce la app
+          <span aria-hidden="true">›</span>
+        </Link>
       </section>
     </main>
   )
