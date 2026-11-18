@@ -10,6 +10,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { ProtectedRoute, PublicOnlyRoute } from './features/auth/RouteGuards'
 import { DashboardLayout } from './features/dashboard/DashboardLayout'
 import { ContactsPage } from './features/contacts/ContactsPage'
+import { ProfileLinkPage } from './features/contacts/ProfileLinkPage'
 import { CoursesPage } from './features/courses/CoursesPage'
 import { EventsPage } from './features/dashboard/EventsPage'
 import { HomePage } from './features/dashboard/HomePage'
@@ -30,6 +31,7 @@ const router = createBrowserRouter([
           { path: 'mis-datos', element: <MyDataPage /> },
           { path: 'cursos', element: <CoursesPage /> },
           { path: 'cordada', element: <ContactsPage /> },
+          { path: 'p/:rocketId', element: <ProfileLinkPage /> },
           { path: 'eventos', element: <EventsPage /> },
         ],
       },

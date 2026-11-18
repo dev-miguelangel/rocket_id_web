@@ -39,7 +39,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'displayName', 'email', 'photoURL', 'createdAt', 'lastLoginAt', 'updatedAt',
           'fullName', 'docType', 'docNumber', 'birthDate', 'phone', 'contactEmail',
-          'rocketId', 'discoverable',
+          'rocketId', 'discoverable', 'exactOnly',
           'bio' // legado del primer MVP
         ])
         && rocketIdOk(uid)
@@ -53,7 +53,8 @@ service cloud.firestore {
         && optStr(request.resource.data, 'birthDate', 10)
         && optStr(request.resource.data, 'phone', 20)
         && optStr(request.resource.data, 'contactEmail', 120)
-        && (!('discoverable' in request.resource.data) || request.resource.data.discoverable is bool);
+        && (!('discoverable' in request.resource.data) || request.resource.data.discoverable is bool)
+        && (!('exactOnly' in request.resource.data) || request.resource.data.exactOnly is bool);
       allow delete: if false;
 
       // Mi cordada: lista privada de contactos. Solo se puede agregar a personas con perfil público.
@@ -131,11 +132,22 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Perfil público: nombre, avatar, rocketId y conocimientos. Se puede leer uno a uno (get), nunca listar.
+    // Perfil público: nombre, avatar, rocketId y conocimientos.
+    // get: cualquiera con el uid (búsqueda exacta o enlace compartido).
+    // list: solo perfiles con búsqueda aproximada activa (searchable) y de a 10 como máximo;
+    // los perfiles "solo búsquedas exactas" nunca aparecen en un listado.
     match /publicProfiles/{uid} {
       allow get: if request.auth != null;
+      allow list: if request.auth != null
+        && request.query.limit <= 10
+        && resource.data.searchable == true;
       allow create, update: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['uid', 'rocketId', 'displayName', 'photoURL', 'skills', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'rocketId', 'displayName', 'photoURL', 'skills', 'searchable', 'searchTokens', 'updatedAt'])
+        && request.resource.data.get('searchable', false) is bool
+        && request.resource.data.get('searchTokens', []) is list
+        && request.resource.data.get('searchTokens', []).size() <= 100
+        // sin búsqueda aproximada no se guardan tokens
+        && (request.resource.data.get('searchable', false) == true || request.resource.data.get('searchTokens', []).size() == 0)
         && request.resource.data.uid == uid
         && request.resource.data.rocketId == get(userPath(uid)).data.get('rocketId', '')
         && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 120

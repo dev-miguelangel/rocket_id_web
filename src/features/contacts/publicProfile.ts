@@ -1,8 +1,9 @@
 import type { User } from 'firebase/auth'
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { toTitleCaseName } from '../../lib/names'
 import { ROCKET_ID_PATTERN, isValidRocketId } from '../../lib/rocketId'
+import { buildSearchTokens, matchesAll, parseQuery } from '../../lib/searchTokens'
 import { parseSkills, parseVerifications, type SkillsData, type Verifications } from '../skills/schema'
 
 /**
@@ -29,25 +30,24 @@ export async function sha256Hex(text: string) {
 
 const emailKey = (email: string) => sha256Hex(email.trim().toLowerCase())
 
-/** Publica (o retira) el perfil público según la preferencia "discoverable". */
+/**
+ * Publica el perfil público. Con "solo búsquedas exactas" activado (exactOnly) el perfil sigue
+ * existiendo para quien tenga tu correo, rocketId o enlace, pero no aparece en la búsqueda aproximada.
+ */
 export async function syncPublicProfile(user: User) {
   const u = (await getDoc(doc(db, 'users', user.uid))).data() ?? {}
   const rocketId = u.rocketId
   if (!isValidRocketId(rocketId)) return
   const email = user.email
-
-  if (u.discoverable === false) {
-    await deleteDoc(publicRef(user.uid)).catch(() => {})
-    if (email) await deleteDoc(emailRef(await emailKey(email))).catch(() => {})
-    return
-  }
+  const searchable = u.exactOnly !== true
+  const displayName = toTitleCaseName(String(u.fullName || u.displayName || '')).slice(0, 120)
 
   const skills = parseSkills((await getDoc(doc(db, 'users', user.uid, 'private', 'skills'))).data())
   const pub = skills.hasCertifications === 'yes' ? skills : { ...skills, categories: [], certifications: [] }
   await setDoc(publicRef(user.uid), {
     uid: user.uid,
     rocketId,
-    displayName: toTitleCaseName(String(u.fullName || u.displayName || '')).slice(0, 120),
+    displayName,
     photoURL: typeof u.photoURL === 'string' ? u.photoURL.slice(0, 500) : null,
     skills: {
       hasCertifications: pub.hasCertifications,
@@ -62,14 +62,16 @@ export async function syncPublicProfile(user: User) {
         status,
       })),
     },
+    searchable,
+    searchTokens: searchable ? buildSearchTokens(displayName, rocketId) : [],
     updatedAt: serverTimestamp(),
   })
   // Índice por correo (hash): solo permite encontrarte si alguien escribe tu correo exacto
   if (email) await setDoc(emailRef(await emailKey(email)), { uid: user.uid }).catch((e) => console.warn('emailIndex', e))
 }
 
-export async function setDiscoverable(user: User, discoverable: boolean) {
-  await setDoc(doc(db, 'users', user.uid), { discoverable }, { merge: true })
+export async function setExactOnly(user: User, exactOnly: boolean) {
+  await setDoc(doc(db, 'users', user.uid), { exactOnly }, { merge: true })
   await syncPublicProfile(user)
 }
 
@@ -121,4 +123,16 @@ export async function findPerson(query: string): Promise<SearchResult | null> {
     uid = (await getDoc(doc(db, 'rocketIds', code))).data()?.uid
   }
   return typeof uid === 'string' ? getPublicProfile(uid) : null
+}
+
+/** Búsqueda aproximada por nombre o rocketId (≥ 3 caracteres). Solo perfiles con búsqueda aproximada activa. */
+export async function searchApprox(text: string, max = 10): Promise<PublicProfile[]> {
+  const q = parseQuery(text)
+  if (!q) return []
+  const snap = await getDocs(
+    query(collection(db, 'publicProfiles'), where('searchable', '==', true), where('searchTokens', 'array-contains', q.term), limit(max)),
+  )
+  return snap.docs
+    .map((d) => parsePublic(d.id, d.data()))
+    .filter((p) => matchesAll(q.terms, p.displayName, p.rocketId))
 }

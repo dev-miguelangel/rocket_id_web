@@ -22,7 +22,7 @@ export function DashboardLayout() {
     <div className="flex min-h-dvh flex-col bg-surface">
       <header className="pt-safe sticky top-0 z-20 border-b border-line/70 bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <h1 className="text-lg font-bold text-fg">{title ?? 'rocketId'}</h1>
+          <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/p/') ? 'Perfil' : 'rocketId')}</h1>
           <UserMenu />
         </div>
       </header>

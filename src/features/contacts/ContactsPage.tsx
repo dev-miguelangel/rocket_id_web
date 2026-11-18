@@ -6,7 +6,18 @@ import { db } from '../../lib/firebase'
 import { useAuth } from '../auth/AuthProvider'
 import { addContact, removeContact, subscribeContacts, type Contact } from './contactsApi'
 import { PublicProfileCard } from './PublicProfileCard'
-import { findPerson, getPublicProfile, setDiscoverable, type SearchResult } from './publicProfile'
+import { MIN_QUERY, parseQuery } from '../../lib/searchTokens'
+import { ShareProfile } from './ShareProfile'
+import {
+  findPerson,
+  getPublicProfile,
+  looksLikeEmail,
+  normalizeRocketIdInput,
+  searchApprox,
+  setExactOnly,
+  type PublicProfile,
+  type SearchResult,
+} from './publicProfile'
 
 type SearchState =
   | { kind: 'idle' }
@@ -29,6 +40,39 @@ export function ContactsPage() {
   const [adding, setAdding] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [openContact, setOpenContact] = useState<Contact | null>(null)
+  const [suggestions, setSuggestions] = useState<PublicProfile[] | null>(null)
+
+  // Búsqueda aproximada mientras se escribe (≥ 3 caracteres, con pausa de 300 ms)
+  const canSuggest = !q.includes('@') && !!parseQuery(q)
+  useEffect(() => {
+    const text = q.trim()
+    if (text.includes('@') || !parseQuery(text)) return
+    let alive = true
+    const t = setTimeout(() => {
+      searchApprox(text)
+        .then((r) => alive && setSuggestions(r))
+        .catch((e) => {
+          console.warn('searchApprox', e)
+          if (alive) setSuggestions([])
+        })
+    }, 300)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [q])
+
+  const pick = async (uid: string) => {
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    setSuggestions(null)
+    setSearch({ kind: 'loading' })
+    try {
+      const r = await getPublicProfile(uid)
+      setSearch(r ? { kind: 'found', result: r } : { kind: 'notFound', query: q })
+    } catch {
+      setSearch({ kind: 'error' })
+    }
+  }
 
   useEffect(() => {
     if (!user) return
@@ -47,7 +91,14 @@ export function ContactsPage() {
     e.preventDefault()
     const query = q.trim()
     if (!query) return
+    // Sin correo ni rocketId completo: si hay una sola sugerencia, la abrimos
+    if (!looksLikeEmail(query) && !normalizeRocketIdInput(query)) {
+      if (canSuggest && suggestions?.length === 1) pick(suggestions[0].uid)
+      else if (!canSuggest) setSearch({ kind: 'format' })
+      return
+    }
     ;(document.activeElement as HTMLElement | null)?.blur() // cierra el teclado
+    setSuggestions(null)
     setSearch({ kind: 'loading' })
     try {
       const result = await findPerson(query)
@@ -79,7 +130,7 @@ export function ContactsPage() {
       <section>
         <form onSubmit={onSearch} role="search" className="flex gap-2">
           <label htmlFor="contact-search" className="sr-only">
-            Buscar por correo o rocketId
+            Buscar por nombre, correo o rocketId
           </label>
           <div className="relative min-w-0 flex-1">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" aria-hidden="true">
@@ -99,7 +150,7 @@ export function ContactsPage() {
                 setQ(e.target.value)
                 if (search.kind !== 'loading') setSearch({ kind: 'idle' })
               }}
-              placeholder="Correo o rocketId (SU-1234)"
+              placeholder="Nombre, correo o rocketId"
               className="h-12 w-full rounded-xl border border-line-strong bg-card pr-3 pl-10 text-base text-fg outline-none placeholder:text-subtle focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>
@@ -112,16 +163,45 @@ export function ContactsPage() {
           </button>
         </form>
 
+        {canSuggest && suggestions !== null && search.kind === 'idle' && (
+          <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-card">
+            {suggestions.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-muted">Sin coincidencias. Prueba con un correo exacto o el rocketId completo.</p>
+            ) : (
+              <ul className="divide-y divide-line" aria-label="Sugerencias">
+                {suggestions.map((p) => (
+                  <li key={p.uid}>
+                    <button type="button" onClick={() => pick(p.uid)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left active:bg-line/60">
+                      <Avatar name={p.displayName} photoURL={p.photoURL} className="size-10" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-base font-medium text-fg">
+                          {p.displayName}
+                          {p.isMock && <span className="ml-1.5 text-xs" title="Perfil de prueba">🧪</span>}
+                        </span>
+                        <span className="block font-mono text-xs font-semibold tracking-wider text-muted">{p.rocketId}</span>
+                      </span>
+                      {inCordada(p.uid) && <span className="text-xs font-medium text-primary-text">En tu cordada</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        {q.trim().length > 0 && q.trim().length < MIN_QUERY && search.kind === 'idle' && (
+          <p className="mt-2 px-1 text-xs text-muted">Escribe al menos {MIN_QUERY} caracteres.</p>
+        )}
+
         <div className="mt-3" aria-live="polite">
           {search.kind === 'loading' && <div className="h-48 animate-pulse rounded-2xl bg-line" aria-label="Buscando" />}
           {search.kind === 'format' && (
-            <Notice icon="✍️" title="Revisa lo que escribiste" text="Escribe un correo completo (nombre@dominio.cl) o un rocketId como SU-1234." />
+            <Notice icon="✍️" title="Revisa lo que escribiste" text="Escribe al menos 3 letras del nombre, un correo completo (nombre@dominio.cl) o un rocketId como SU-1234." />
           )}
           {search.kind === 'notFound' && (
             <Notice
               icon="🤷"
               title="No encontramos a nadie"
-              text="Verifica el correo o rocketId. También puede que esa persona tenga su perfil oculto en las búsquedas."
+              text="Verifica el correo o rocketId. Si buscas por nombre, puede que esa persona solo aparezca en búsquedas exactas."
             />
           )}
           {search.kind === 'error' && <Notice icon="⚠️" title="No se pudo buscar" text="Revisa tu conexión e inténtalo de nuevo." />}
@@ -158,7 +238,7 @@ export function ContactsPage() {
           <div className="rounded-2xl border border-dashed border-line-strong bg-card px-6 py-8 text-center">
             <p className="text-3xl" aria-hidden="true">🧗</p>
             <p className="mt-2 font-semibold text-fg">Tu cordada está vacía</p>
-            <p className="mt-1 text-sm text-muted">Busca a tus compañeros de salida por correo o rocketId.</p>
+            <p className="mt-1 text-sm text-muted">Busca a tus compañeros de salida por nombre, correo o rocketId.</p>
           </div>
         ) : (
           <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card">
@@ -178,7 +258,9 @@ export function ContactsPage() {
         )}
       </section>
 
-      <DiscoverableSetting />
+      <ShareProfile />
+
+      <ExactOnlySetting />
 
       <ContactSheet contact={openContact} onClose={closeContact} onRemoved={(name) => setToast(`${name} salió de tu cordada`)} />
 
@@ -296,21 +378,21 @@ function ContactSheet({ contact, onClose, onRemoved }: { contact: Contact | null
 
 // ---------- Visibilidad ----------
 
-function DiscoverableSetting() {
+function ExactOnlySetting() {
   const { user } = useAuth()
   const [on, setOn] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!user) return
-    return onSnapshot(doc(db, 'users', user.uid), (s) => setOn(s.data()?.discoverable !== false))
+    return onSnapshot(doc(db, 'users', user.uid), (s) => setOn(s.data()?.exactOnly === true))
   }, [user])
 
   const toggle = async () => {
     if (!user || on === null) return
     setBusy(true)
     try {
-      await setDiscoverable(user, !on)
+      await setExactOnly(user, !on)
     } finally {
       setBusy(false)
     }
@@ -322,14 +404,18 @@ function DiscoverableSetting() {
       <div className="rounded-2xl border border-line bg-card p-4">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p id="discoverable-label" className="font-medium text-fg">Aparecer en búsquedas</p>
-            <p className="text-xs text-muted">Otras personas podrán encontrarte con tu correo exacto o tu rocketId.</p>
+            <p id="exact-only-label" className="font-medium text-fg">Solo aparecer en búsquedas exactas</p>
+            <p className="text-xs text-muted">
+              {on
+                ? 'Solo te encuentran con tu correo exacto, tu rocketId o tu enlace.'
+                : 'También apareces cuando alguien escribe tu nombre o parte de tu rocketId.'}
+            </p>
           </div>
           <button
             type="button"
             role="switch"
             aria-checked={!!on}
-            aria-labelledby="discoverable-label"
+            aria-labelledby="exact-only-label"
             disabled={on === null || busy}
             onClick={toggle}
             className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-60 ${on ? 'bg-primary' : 'bg-line-strong'}`}

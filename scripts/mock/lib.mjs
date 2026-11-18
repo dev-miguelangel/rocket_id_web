@@ -62,3 +62,18 @@ export const generateRocketId = () =>
   `${CONSONANTS[randomInt(CONSONANTS.length)]}${VOWELS[randomInt(VOWELS.length)]}-${String(randomInt(10_000)).padStart(4, '0')}`
 
 export const mockMeta = () => ({ isMock: true, seed: SEED_ID, createdAt: new Date().toISOString() })
+
+// Réplica de src/lib/searchTokens.ts (mantener sincronizado)
+const normalizeText = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+const words = (s) => normalizeText(s).split(/[^a-z0-9]+/).filter(Boolean)
+const prefixes = (w) => {
+  const out = []
+  for (let i = 3; i <= Math.min(w.length, 20); i++) out.push(w.slice(0, i))
+  return out
+}
+export function buildSearchTokens(displayName, rocketId) {
+  const set = new Set()
+  for (const w of words(displayName)) if (w.length >= 3) prefixes(w).forEach((p) => set.add(p))
+  prefixes(rocketId.toLowerCase().replace(/[^a-z0-9]/g, '')).forEach((p) => set.add(p))
+  return [...set].slice(0, 100)
+}

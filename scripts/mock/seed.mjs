@@ -4,6 +4,7 @@
 // Todo lo creado queda registrado en _mock/registry y marcado con `_mock`, para purgarlo con `npm run mock:purge`.
 import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import {
+  buildSearchTokens,
   MOCK_EMAIL_DOMAIN,
   MOCK_UID_PREFIX,
   REGISTRY_PATH,
@@ -27,7 +28,13 @@ const created = []
 for (const u of MOCK_USERS) {
   const uid = `${MOCK_UID_PREFIX}${u.slug}`
   if (already.has(uid)) {
-    console.log(`  · ${u.displayName} ya existe, se omite`)
+    // Ya existe: solo se actualizan los campos de búsqueda aproximada (idempotente)
+    const ref = db.doc(`publicProfiles/${uid}`)
+    const cur = (await ref.get()).data()
+    if (cur) {
+      await ref.update({ searchable: true, searchTokens: buildSearchTokens(cur.displayName, cur.rocketId) })
+      console.log(`  · ${u.displayName} ya existe (búsqueda aproximada actualizada)`)
+    }
     continue
   }
   const email = `${u.email}@${MOCK_EMAIL_DOMAIN}`
@@ -65,6 +72,8 @@ for (const u of MOCK_USERS) {
       displayName: u.displayName,
       photoURL: null,
       skills: { hasCertifications, categories, certifications },
+      searchable: true,
+      searchTokens: buildSearchTokens(u.displayName, rocketId),
       updatedAt: FieldValue.serverTimestamp(),
       _mock,
     })
