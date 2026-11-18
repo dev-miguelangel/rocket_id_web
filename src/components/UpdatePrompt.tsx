@@ -1,29 +1,45 @@
+import { useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
-/** Aviso cuando hay una nueva versión de la app publicada. */
+const CHECK_EVERY_MS = 30 * 60 * 1000
+
+/** ¿Hay una hoja/diálogo abierto? (formulario a medio llenar: no recargar todavía) */
+const busy = () => !!document.querySelector('[role="dialog"]')
+
+/**
+ * Actualización automática de la PWA:
+ * - busca versiones nuevas al abrir, al volver a la app y cada 30 minutos;
+ * - cuando hay una, la activa y recarga, pero espera a que no haya ninguna hoja abierta
+ *   para no perder lo que la persona esté escribiendo.
+ */
 export function UpdatePrompt() {
   const {
-    needRefresh: [needRefresh, setNeedRefresh],
+    needRefresh: [needRefresh],
     updateServiceWorker,
-  } = useRegisterSW()
+  } = useRegisterSW({
+    onRegisteredSW(_url, registration) {
+      if (!registration) return
+      const check = () => {
+        if (navigator.onLine) registration.update().catch(() => {})
+      }
+      setInterval(check, CHECK_EVERY_MS)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check()
+      })
+    },
+  })
 
-  if (!needRefresh) return null
+  useEffect(() => {
+    if (!needRefresh) return
+    const apply = () => {
+      if (busy()) return false
+      updateServiceWorker(true)
+      return true
+    }
+    if (apply()) return
+    const t = setInterval(() => apply() && clearInterval(t), 2000)
+    return () => clearInterval(t)
+  }, [needRefresh, updateServiceWorker])
 
-  return (
-    <div className="pb-safe fixed inset-x-0 bottom-20 z-30 px-4">
-      <div className="mx-auto flex max-w-sm items-center gap-3 rounded-2xl bg-zinc-900 p-3 ring-1 ring-white/10 pl-4 text-sm text-white shadow-xl">
-        <span className="flex-1">Hay una nueva versión disponible.</span>
-        <button type="button" onClick={() => setNeedRefresh(false)} className="h-10 px-2 text-zinc-400">
-          Luego
-        </button>
-        <button
-          type="button"
-          onClick={() => updateServiceWorker(true)}
-          className="h-10 rounded-xl bg-accent px-4 font-semibold"
-        >
-          Actualizar
-        </button>
-      </div>
-    </div>
-  )
+  return null
 }

@@ -6,14 +6,50 @@ import { useAuth } from '../auth/AuthProvider'
 import { timeAgo } from '../events/useMe'
 import { deleteNotification, markAllRead, markRead, subscribeNotifications, type AppNotification, type NotificationType } from './notificationsApi'
 
-const T: Record<NotificationType, { icon: string; text: (n: AppNotification) => string }> = {
-  event_invite: { icon: '📩', text: (n) => `${n.actorName} te invitó a “${n.eventTitle}”` },
-  event_updated: { icon: '✏️', text: (n) => `${n.actorName} actualizó “${n.eventTitle}”` },
-  event_cancelled: { icon: '🚫', text: (n) => `${n.actorName} canceló “${n.eventTitle}”` },
-  participant_confirmed: { icon: '✅', text: (n) => `${n.actorName} confirmó su asistencia a “${n.eventTitle}”` },
-  participant_joined: { icon: '🙋', text: (n) => `${n.actorName} se unió a “${n.eventTitle}”` },
-  participant_declined: { icon: '👋', text: (n) => `${n.actorName} no podrá ir a “${n.eventTitle}”` },
-  sensitive_view: { icon: '👁️', text: (n) => `${n.actorName} vio tu ficha de emergencia en “${n.eventTitle}”` },
+/** Texto, ícono y contexto (estado o motivo) de cada tipo de notificación */
+const T: Record<NotificationType, { icon: string; tone: string; text: (n: AppNotification) => string; context: string }> = {
+  event_invite: {
+    icon: '📩',
+    tone: 'bg-sky-100 dark:bg-sky-500/15',
+    text: (n) => `${n.actorName} te invitó a “${n.eventTitle}”`,
+    context: 'Invitación pendiente · toca para confirmar o rechazar',
+  },
+  event_updated: {
+    icon: '✏️',
+    tone: 'bg-amber-100 dark:bg-amber-500/15',
+    text: (n) => `${n.actorName} actualizó “${n.eventTitle}”`,
+    context: 'Revisa los cambios del evento',
+  },
+  event_cancelled: {
+    icon: '🚫',
+    tone: 'bg-red-100 dark:bg-red-500/15',
+    text: (n) => `${n.actorName} canceló “${n.eventTitle}”`,
+    context: 'El evento ya no se realizará',
+  },
+  participant_confirmed: {
+    icon: '✅',
+    tone: 'bg-emerald-100 dark:bg-emerald-500/15',
+    text: (n) => `${n.actorName} confirmó su asistencia a “${n.eventTitle}”`,
+    context: 'Invitación aceptada · compartió su ficha de emergencia contigo',
+  },
+  participant_joined: {
+    icon: '🙋',
+    tone: 'bg-emerald-100 dark:bg-emerald-500/15',
+    text: (n) => `${n.actorName} se unió a “${n.eventTitle}”`,
+    context: 'Se unió con el enlace o desde Explorar · compartió su ficha contigo',
+  },
+  participant_declined: {
+    icon: '👋',
+    tone: 'bg-zinc-200 dark:bg-zinc-500/20',
+    text: (n) => `${n.actorName} no podrá ir a “${n.eventTitle}”`,
+    context: 'Invitación rechazada o canceló su asistencia · su ficha ya no está disponible',
+  },
+  sensitive_view: {
+    icon: '👁️',
+    tone: 'bg-violet-100 dark:bg-violet-500/15',
+    text: (n) => `${n.actorName} vio tu ficha de emergencia en “${n.eventTitle}”`,
+    context: 'El organizador revisó tus datos de salud y contacto de emergencia',
+  },
 }
 
 /** Notificaciones de la persona en sesión, en tiempo real */
@@ -87,12 +123,12 @@ export function NotificationsSheet({ open, onClose, items }: { open: boolean; on
                 trailing={[{ key: 'del', label: 'Borrar', icon: '🗑', tone: 'danger', onClick: () => user && deleteNotification(user.uid, n.id) }]}
               >
                 <button type="button" onClick={() => go(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left active:bg-line/60 ${n.read ? '' : 'bg-primary/5'}`}>
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl" aria-hidden="true">
+                  <span className={`flex size-11 shrink-0 items-center justify-center rounded-full text-xl ${T[n.type].tone}`} aria-hidden="true">
                     {T[n.type].icon}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block text-sm ${n.read ? 'text-fg-soft' : 'font-semibold text-fg'}`}>{T[n.type].text(n)}</span>
-                    {n.detail && <span className="block text-sm text-muted">{n.detail}</span>}
+                    <span className="block text-sm text-muted">{n.detail || T[n.type].context}</span>
                     <span className="text-xs text-muted">{timeAgo(n.createdAt)}</span>
                   </span>
                   {!n.read && <span className="mt-2 size-2.5 shrink-0 rounded-full bg-primary" aria-label="Sin leer" />}
