@@ -1,0 +1,33 @@
+import { Link } from 'react-router'
+import { useAuth } from '../auth/AuthProvider'
+
+export function HomePage() {
+  const { user } = useAuth()
+  const firstName = user?.displayName?.split(' ')[0] ?? ''
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-3xl bg-gradient-to-br from-primary to-accent p-5 text-white shadow-lg shadow-primary/20">
+        <p className="text-sm opacity-90">Bienvenido de vuelta</p>
+        <h2 className="mt-1 text-2xl font-bold">Hola, {firstName} 👋</h2>
+      </section>
+
+      <div className="grid grid-cols-2 gap-3">
+        <ShortcutCard to="/mis-datos" title="Mis datos" subtitle="Revisa y edita tu perfil" />
+        <ShortcutCard to="/eventos" title="Eventos" subtitle="Próximas actividades" />
+      </div>
+    </div>
+  )
+}
+
+function ShortcutCard({ to, title, subtitle }: { to: string; title: string; subtitle: string }) {
+  return (
+    <Link
+      to={to}
+      className="flex min-h-28 flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition active:scale-[0.98]"
+    >
+      <span className="text-base font-semibold text-zinc-900">{title}</span>
+      <span className="text-sm text-zinc-500">{subtitle}</span>
+    </Link>
+  )
+}
