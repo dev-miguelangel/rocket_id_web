@@ -1,6 +1,8 @@
 import QRCode from 'qrcode'
 import { useEffect, useMemo, useState } from 'react'
+import { Segmented } from '../../components/form'
 import { toTitleCaseName } from '../../lib/names'
+import { encodeSos, sosUrl, type SosData } from '../../lib/sosCodec'
 import { DOC_TYPES, INSURANCE_SYSTEMS, ageFrom, type ProfileForm } from './schema'
 
 /**
@@ -42,6 +44,33 @@ function lines(p: ProfileForm, on: Set<FieldKey>) {
   return out
 }
 
+/** Datos elegidos, para el enlace /sos (van comprimidos dentro del QR) */
+function sosData(p: ProfileForm, on: Set<FieldKey>): SosData {
+  return {
+    n: on.has('name') ? toTitleCaseName(p.fullName) : undefined,
+    b: on.has('age') ? p.birthDate : undefined,
+    d: on.has('doc') && p.docNumber ? `${DOC_TYPES.find((d) => d.value === p.docType)?.label ?? 'Documento'} ${p.docNumber}` : undefined,
+    s: on.has('blood') ? p.bloodType : undefined,
+    a: on.has('allergies') ? clip(p.allergies, 300) : undefined,
+    c: on.has('conditions') ? clip(p.conditions, 300) : undefined,
+    m: on.has('medications') ? clip(p.medications, 300) : undefined,
+    i: on.has('insurance')
+      ? [INSURANCE_SYSTEMS.find((x) => x.value === p.insuranceSystem)?.label, p.insuranceDetail].filter(Boolean).join(' · ')
+      : undefined,
+    e: on.has('contact') ? { n: toTitleCaseName(p.emergencyName), r: p.emergencyRelationship, p: p.emergencyPhone } : undefined,
+  }
+}
+
+type Format = 'link' | 'text'
+const FORMAT_KEY = 'rocketid-emergency-card-format'
+const readFormat = (): Format => {
+  try {
+    return localStorage.getItem(FORMAT_KEY) === 'text' ? 'text' : 'link'
+  } catch {
+    return 'link'
+  }
+}
+
 const qrText = (rows: [string, string][]) => ['🆘 EMERGENCIA · rocketId', ...rows.map(([k, v]) => `${k}: ${v}`), 'Ante riesgo vital llama al 131 (SAMU)'].join('\n')
 
 function readPrefs(): Set<FieldKey> {
@@ -56,20 +85,38 @@ function readPrefs(): Set<FieldKey> {
 
 export function EmergencyCard({ profile }: { profile: ProfileForm }) {
   const [on, setOn] = useState<Set<FieldKey>>(readPrefs)
+  const [format, setFormat] = useState<Format>(readFormat)
+  const [content, setContent] = useState('')
   const [svg, setSvg] = useState('')
   const [busy, setBusy] = useState<'wallpaper' | 'card' | null>(null)
   const rows = useMemo(() => lines(profile, on), [profile, on])
   const text = useMemo(() => qrText(rows), [rows])
 
+  // Contenido del QR: enlace a /sos con los datos en el fragmento, o el texto plano
   useEffect(() => {
     let alive = true
-    QRCode.toString(text, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#18181b', light: '#ffffff' } })
-      .then((s) => alive && setSvg(s))
+    const build = format === 'link' ? encodeSos(sosData(profile, on)).then((f) => sosUrl(window.location.origin, f)) : Promise.resolve(text)
+    build
+      .then((c) => {
+        if (!alive) return
+        setContent(c)
+        return QRCode.toString(c, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#18181b', light: '#ffffff' } })
+      })
+      .then((svgText) => alive && svgText && setSvg(svgText))
       .catch(() => alive && setSvg(''))
     return () => {
       alive = false
     }
-  }, [text])
+  }, [format, profile, on, text])
+
+  const chooseFormat = (f: Format) => {
+    setFormat(f)
+    try {
+      localStorage.setItem(FORMAT_KEY, f)
+    } catch {
+      /* ignorar */
+    }
+  }
 
   const toggle = (k: FieldKey) => {
     const next = new Set(on)
@@ -86,7 +133,7 @@ export function EmergencyCard({ profile }: { profile: ProfileForm }) {
   const download = async (kind: 'wallpaper' | 'card') => {
     setBusy(kind)
     try {
-      const blob = await renderImage(kind, rows, text)
+      const blob = await renderImage(kind, rows, content || text)
       const name = kind === 'wallpaper' ? 'rocketid-fondo-emergencia.png' : 'rocketid-tarjeta-emergencia.png'
       const file = new File([blob], name, { type: 'image/png' })
       // En el teléfono: menú de compartir (Guardar imagen / Imprimir). En computador: descarga.
@@ -111,7 +158,7 @@ export function EmergencyCard({ profile }: { profile: ProfileForm }) {
       <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
         <p className="font-semibold text-fg">Para cuando nadie tenga señal ni la app</p>
         <p className="mt-1 max-w-prose text-base text-fg-soft">
-          Tus datos van <strong>dentro del código QR</strong>: cualquier cámara los lee sin internet. Guárdalo como fondo de pantalla o imprímelo para tu mochila o casco.
+          Cualquier cámara lo escanea y abre una página clara con tus datos. Los datos van <strong>dentro del propio código</strong>: rocketId no los guarda. Usa la imagen como fondo de pantalla o imprímela para tu mochila o casco.
         </p>
       </div>
 
@@ -123,7 +170,26 @@ export function EmergencyCard({ profile }: { profile: ProfileForm }) {
         ) : (
           <div className="mt-2 w-full max-w-[220px] [&_svg]:h-auto [&_svg]:w-full" role="img" aria-label="Código QR con tus datos de emergencia" dangerouslySetInnerHTML={{ __html: svg }} />
         )}
-        <p className="mt-2 text-center text-xs text-zinc-600">Escanea con la cámara · no necesita internet</p>
+        <p className="mt-2 text-center text-xs text-zinc-600">
+          {format === 'link' ? 'Escanea con la cámara · abre una página con tus datos' : 'Escanea con la cámara · texto, no necesita internet'}
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-line bg-card p-4">
+        <Segmented
+          label="Formato del código"
+          value={format}
+          options={[
+            { value: 'link', label: 'Enlace (recomendado)' },
+            { value: 'text', label: 'Solo texto' },
+          ]}
+          onChange={chooseFormat}
+        />
+        <p className="mt-2 text-sm text-muted">
+          {format === 'link'
+            ? 'Muestra todo ordenado, con botones para llamar. Quien escanea necesita conexión para abrir la página.'
+            : 'Se lee sin internet, pero algunas cámaras (como la del iPhone) solo ofrecen llamar al teléfono y no muestran el resto.'}
+        </p>
       </div>
 
       <section>
@@ -222,7 +288,7 @@ async function renderImage(kind: 'wallpaper' | 'card', rows: [string, string][],
     ctx.fillStyle = '#52525b'
     ctx.font = '500 32px system-ui, sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText('Escanea con la cámara · no necesita internet', W / 2, H - 220)
+    ctx.fillText('Escanea con la cámara para ver mis datos médicos', W / 2, H - 220)
     ctx.fillText('Riesgo vital: llama al 131 (SAMU)', W / 2, H - 170)
   } else {
     ctx.drawImage(qr, W - qr.width - 50, (H - qr.height) / 2)

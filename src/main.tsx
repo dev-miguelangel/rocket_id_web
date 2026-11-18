@@ -13,6 +13,7 @@ import { ContactsPage } from './features/contacts/ContactsPage'
 import { ProfileLinkPage } from './features/contacts/ProfileLinkPage'
 import { PublicProfilePage } from './features/contacts/PublicProfilePage'
 import { LandingPage } from './features/landing/LandingPage'
+import { SosPage } from './features/sos/SosPage'
 import { CoursesPage } from './features/courses/CoursesPage'
 import { EventDetailPage } from './features/events/EventDetailPage'
 import { EventsPage } from './features/events/EventsPage'
@@ -24,6 +25,8 @@ const router = createBrowserRouter([
   { path: '/p/:rocketId', element: <PublicProfilePage /> },
   // Landing para promocionar la app (también se ve en "/" sin sesión)
   { path: '/conoce', element: <LandingPage /> },
+  // Página de emergencia del QR: datos en el fragmento (#), sin sesión ni servidor
+  { path: '/sos', element: <SosPage /> },
   {
     element: <PublicOnlyRoute />,
     children: [{ path: '/login', element: <LoginPage /> }],
