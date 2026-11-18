@@ -65,7 +65,13 @@ export const mockMeta = () => ({ isMock: true, seed: SEED_ID, createdAt: new Dat
 
 // Réplica de src/lib/searchTokens.ts (mantener sincronizado)
 const normalizeText = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
-const words = (s) => normalizeText(s).split(/[^a-z0-9]+/).filter(Boolean)
+const splitWords = (s) => normalizeText(s).split(/[^a-z0-9]+/).filter(Boolean)
+const joinedWords = (s) =>
+  normalizeText(s)
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ''))
+    .filter(Boolean)
+const wordForms = (s) => [...new Set([...splitWords(s), ...joinedWords(s)])]
 const prefixes = (w) => {
   const out = []
   for (let i = 3; i <= Math.min(w.length, 20); i++) out.push(w.slice(0, i))
@@ -73,7 +79,7 @@ const prefixes = (w) => {
 }
 export function buildSearchTokens(displayName, rocketId) {
   const set = new Set()
-  for (const w of words(displayName)) if (w.length >= 3) prefixes(w).forEach((p) => set.add(p))
+  for (const w of wordForms(displayName)) if (w.length >= 3) prefixes(w).forEach((p) => set.add(p))
   prefixes(rocketId.toLowerCase().replace(/[^a-z0-9]/g, '')).forEach((p) => set.add(p))
   return [...set].slice(0, 100)
 }
