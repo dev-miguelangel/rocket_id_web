@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { auth, googleProvider } from '../../lib/firebase'
+import { ensureRocketId } from '../../lib/rocketId'
 import { upsertUserProfile } from './userProfile'
 
 interface AuthContextValue {
@@ -45,7 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getRedirectResult(auth).catch((e) => setError(friendlyError(e)))
     return onAuthStateChanged(auth, (u) => {
       setUser(u)
-      if (u) upsertUserProfile(u).catch((e) => console.error('upsertUserProfile', e))
+      if (u)
+        upsertUserProfile(u)
+          .then(() => ensureRocketId(u.uid))
+          .catch((e) => console.error('upsertUserProfile/ensureRocketId', e))
     })
   }, [])
 

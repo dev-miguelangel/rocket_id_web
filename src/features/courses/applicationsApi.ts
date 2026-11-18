@@ -39,8 +39,9 @@ export function subscribeMyApplications(uid: string, cb: (apps: Application[]) =
 }
 
 /** Solo identificación, contacto y conocimientos. Nunca salud ni contacto de emergencia. */
-export function buildApplicantSnapshot(p: ProfileForm, s: SkillsData): ApplicantSnapshot {
+export function buildApplicantSnapshot(p: ProfileForm, s: SkillsData, rocketId: string | null): ApplicantSnapshot {
   return {
+    rocketId: rocketId ?? '',
     fullName: toTitleCaseName(p.fullName),
     docType: p.docType,
     docNumber: p.docNumber,

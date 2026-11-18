@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { RocketIdBadge } from '../../components/RocketIdBadge'
 import { Sheet } from '../../components/Sheet'
+import { useRocketId } from '../auth/useRocketId'
 import { toTitleCaseName } from '../../lib/names'
 import { normalizePhone } from '../../lib/phone'
 import { useAuth } from '../auth/AuthProvider'
@@ -14,6 +16,7 @@ const FORMS = { identity: IdentityForm, contact: ContactForm, health: HealthForm
 
 export function MyDataPage() {
   const { user } = useAuth()
+  const rocketId = useRocketId()
   const [profile, setProfile] = useState<ProfileForm | null>(null)
   const [skills, setSkills] = useState<SkillsData | null>(null)
   const [verifications, setVerifications] = useState<Verifications>({})
@@ -136,6 +139,14 @@ export function MyDataPage() {
 
   return (
     <div className="space-y-6 pb-4">
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-card px-4 py-3">
+        <div>
+          <p className="text-xs text-muted">Tu rocketId</p>
+          <p className="text-xs text-subtle">Identificador único y permanente</p>
+        </div>
+        <RocketIdBadge rocketId={rocketId} />
+      </div>
+
       {missing.length > 0 ? (
         <button
           type="button"

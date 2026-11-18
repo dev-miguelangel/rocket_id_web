@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { BottomSheet } from '../../components/Sheet'
 import { useAuth } from '../auth/AuthProvider'
+import { useRocketId } from '../auth/useRocketId'
 import { DOC_TYPES, type ProfileForm } from '../profile/schema'
 import { categoryOf, statusOf, type SkillsData } from '../skills/schema'
 import { REQUIRED_FOR_APPLY, buildApplicantSnapshot, submitApplication } from './applicationsApi'
@@ -23,6 +24,7 @@ const primaryBtn =
 
 export function CourseSheet({ course, application, profile, skills, onClose }: Props) {
   const { user } = useAuth()
+  const rocketId = useRocketId()
   const navigate = useNavigate()
   // Conserva el último curso para que el contenido no desaparezca durante la animación de cierre
   const [shown, setShown] = useState<Course | null>(course)
@@ -52,7 +54,7 @@ export function CourseSheet({ course, application, profile, skills, onClose }: P
     setSending(true)
     setError(null)
     try {
-      await submitApplication(user.uid, c, buildApplicantSnapshot(profile, skills))
+      await submitApplication(user.uid, c, buildApplicantSnapshot(profile, skills, rocketId))
       navigator.vibrate?.([10, 40, 10])
       setStep('sent')
     } catch (e) {
@@ -124,6 +126,7 @@ export function CourseSheet({ course, application, profile, skills, onClose }: P
       {step === 'consent' && (
         <Consent
           provider={provider}
+          rocketId={rocketId}
           profile={profile}
           skills={skills}
           missing={missing.map((m) => m.label)}
@@ -221,6 +224,7 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 
 interface ConsentProps {
   provider: string
+  rocketId: string | null
   profile: ProfileForm
   skills: SkillsData
   missing: string[]
@@ -229,7 +233,7 @@ interface ConsentProps {
   error: string | null
 }
 
-function Consent({ provider, profile: p, skills, missing, accepted, onAccept, error }: ConsentProps) {
+function Consent({ provider, rocketId, profile: p, skills, missing, accepted, onAccept, error }: ConsentProps) {
   const checkId = useId()
   const docLabel = DOC_TYPES.find((d) => d.value === p.docType)?.label ?? 'Documento'
   const certs = skills.hasCertifications === 'yes' ? skills.certifications : []
@@ -256,6 +260,7 @@ function Consent({ provider, profile: p, skills, missing, accepted, onAccept, er
       )}
 
       <Preview title="🪪 Identificación">
+        <Row label="rocketId" value={rocketId ?? ''} />
         <Row label="Nombre" value={p.fullName} />
         <Row label={docLabel} value={p.docNumber} />
         <Row label="Fecha de nacimiento" value={p.birthDate ? new Date(`${p.birthDate}T00:00:00`).toLocaleDateString('es') : ''} />

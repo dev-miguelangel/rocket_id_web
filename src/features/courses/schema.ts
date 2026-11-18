@@ -53,6 +53,7 @@ export interface SharedCertification {
 
 /** Datos que se comparten con la institución (copia al momento de postular) */
 export interface ApplicantSnapshot {
+  rocketId: string
   fullName: string
   docType: string
   docNumber: string

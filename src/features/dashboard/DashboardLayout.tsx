@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { RocketIdBadge } from '../../components/RocketIdBadge'
 import { toTitleCaseName } from '../../lib/names'
+import { useRocketId } from '../auth/useRocketId'
 import { useTheme, type ThemePreference } from '../../lib/theme'
 import { useAuth } from '../auth/AuthProvider'
 
@@ -66,6 +68,7 @@ export function DashboardLayout() {
 }
 
 function UserMenu() {
+  const rocketId = useRocketId()
   const { user, signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -99,6 +102,7 @@ function UserMenu() {
           <div className="px-3 py-2">
             <p className="truncate font-semibold text-fg">{toTitleCaseName(user?.displayName)}</p>
             <p className="truncate text-sm text-muted">{user?.email}</p>
+            <RocketIdBadge rocketId={rocketId} className="mt-2" />
           </div>
           <ThemeSwitcher />
           <button

@@ -11,6 +11,27 @@ service cloud.firestore {
       return !(key in data) || (data[key] is string && data[key].size() <= max);
     }
 
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+    function rocketIdPath(code) {
+      return /databases/$(database)/documents/rocketIds/$(code);
+    }
+
+    // rocketId en el perfil: una vez asignado no cambia; para asignarlo, su reserva
+    // en rocketIds/{código} debe quedar a nombre de la persona en el mismo lote.
+    function rocketIdOk(uid) {
+      let had = resource != null && ('rocketId' in resource.data);
+      let next = request.resource.data.get('rocketId', null);
+      return had
+        ? next == resource.data.rocketId
+        : (next == null
+            || (next is string
+                && next.matches('^[BCDFGHJKLMNPQRSTVWXYZ][AEIOU]-[0-9]{4}$')
+                && existsAfter(rocketIdPath(next))
+                && getAfter(rocketIdPath(next)).data.uid == uid));
+    }
+
     // Perfil e identificación: users/{uid}
     match /users/{uid} {
       allow read: if isOwner(uid);
@@ -18,8 +39,10 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'displayName', 'email', 'photoURL', 'createdAt', 'lastLoginAt', 'updatedAt',
           'fullName', 'docType', 'docNumber', 'birthDate', 'phone', 'contactEmail',
+          'rocketId',
           'bio' // legado del primer MVP
         ])
+        && rocketIdOk(uid)
         && optStr(request.resource.data, 'fullName', 120)
         && optStr(request.resource.data, 'docType', 20)
         && optStr(request.resource.data, 'docNumber', 30)
@@ -73,6 +96,23 @@ service cloud.firestore {
           && optStr(request.resource.data, 'medications', 1000);
         allow delete: if false;
       }
+    }
+
+    // Reserva de rocketIds: garantiza que cada código sea único.
+    // Solo se puede crear (si ya existe, el set cuenta como update y se rechaza → colisión),
+    // una vez por persona, y nunca modificar ni borrar.
+    match /rocketIds/{code} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null
+        && code.matches('^[BCDFGHJKLMNPQRSTVWXYZ][AEIOU]-[0-9]{4}$')
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        // la persona aún no tenía rocketId…
+        && !(exists(userPath(request.auth.uid)) && ('rocketId' in get(userPath(request.auth.uid)).data))
+        // …y en el mismo lote lo escribe en su perfil
+        && getAfter(userPath(request.auth.uid)).data.get('rocketId', '') == code;
+      allow update, delete: if false;
     }
 
     // Postulaciones a cursos: applications/{uid}_{courseId}
