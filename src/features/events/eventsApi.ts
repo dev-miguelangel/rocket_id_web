@@ -27,6 +27,7 @@ import {
   type Requirement,
   type Visibility,
   sensitiveWindowOpen,
+  sharesFicha,
 } from './schema'
 
 const eventsCol = collection(db, 'events')
@@ -70,6 +71,7 @@ function parseParticipant(uid: string, v: Record<string, unknown>): Participant 
     status: (['invited', 'confirmed', 'declined'].includes(str(v.status)) ? v.status : 'invited') as ParticipantStatus,
     emergencyComplete: v.emergencyComplete === true,
     updatedAt: toDate(v.updatedAt).getTime(),
+    consented: !!v.consent && typeof v.consent === 'object',
   }
 }
 
@@ -193,6 +195,8 @@ export interface EventInput {
   requirements: Requirement[]
   /** true si aceptó la alerta de responsabilidades (obligatorio si es público) */
   publicAck: boolean
+  /** El organizador comparte su propia ficha de emergencia (solo al crear) */
+  shareFicha?: boolean
 }
 
 type Me = Pick<PublicProfile, 'uid' | 'displayName' | 'rocketId' | 'photoURL'>
@@ -213,8 +217,38 @@ const eventFields = (input: EventInput) => ({
     : {}),
 })
 
+/** Lee una vez la ficha completa propia (identidad + emergencia) */
+function loadOwnProfile(uid: string) {
+  return new Promise<ProfileForm>((resolve) => {
+    const unsub = subscribeProfile(uid, (p) => {
+      resolve(p)
+      setTimeout(unsub, 0)
+    })
+  })
+}
+
+const sensitiveFields = (p: ProfileForm) => ({
+  fullName: p.fullName,
+  docType: p.docType,
+  docNumber: p.docNumber,
+  birthDate: p.birthDate,
+  phone: p.phone,
+  emergencyName: p.emergencyName,
+  emergencyRelationship: p.emergencyRelationship,
+  emergencyPhone: p.emergencyPhone,
+  insuranceSystem: p.insuranceSystem,
+  insuranceDetail: p.insuranceDetail,
+  bloodType: p.bloodType,
+  allergies: p.allergies,
+  conditions: p.conditions,
+  medications: p.medications,
+  updatedAt: serverTimestamp(),
+})
+
 export async function createEvent(me: Me, input: EventInput) {
   const ref = doc(eventsCol)
+  // Ficha del organizador, para que también esté disponible en una emergencia
+  const own = input.shareFicha ? await loadOwnProfile(me.uid) : null
   const batch = writeBatch(db)
   batch.set(ref, {
     ...eventFields(input),
@@ -232,11 +266,26 @@ export async function createEvent(me: Me, input: EventInput) {
     photoURL: me.photoURL,
     role: 'organizer',
     status: 'confirmed',
-    emergencyComplete: false,
+    emergencyComplete: own ? CRITICAL_FIELDS.every(({ key }) => !!own[key].trim()) : false,
+    ...(own ? { consent: { version: EVENT_CONSENT_VERSION, acceptedAt: serverTimestamp() } } : {}),
     updatedAt: serverTimestamp(),
   })
+  if (own) batch.set(sensitiveRef(ref.id, me.uid), sensitiveFields(own))
   await batch.commit()
   return ref.id
+}
+
+/** El organizador de un evento existente comparte su ficha (con consentimiento) */
+export async function shareOrganizerFicha(event: EventDoc, me: Me) {
+  const own = await loadOwnProfile(me.uid)
+  const batch = writeBatch(db)
+  batch.update(participantRef(event.id, me.uid), {
+    consent: { version: EVENT_CONSENT_VERSION, acceptedAt: serverTimestamp() },
+    emergencyComplete: CRITICAL_FIELDS.every(({ key }) => !!own[key].trim()),
+    updatedAt: serverTimestamp(),
+  })
+  batch.set(sensitiveRef(event.id, me.uid), sensitiveFields(own))
+  await batch.commit()
 }
 
 /** Editar (solo organizador) y avisar a los participantes de lo que cambió. */
@@ -285,34 +334,6 @@ export function removeParticipant(eid: string, uid: string) {
   return batch.commit()
 }
 
-/** Lee una vez la ficha completa propia (identidad + emergencia) */
-function loadOwnProfile(uid: string) {
-  return new Promise<ProfileForm>((resolve) => {
-    const unsub = subscribeProfile(uid, (p) => {
-      resolve(p)
-      setTimeout(unsub, 0)
-    })
-  })
-}
-
-const sensitiveFields = (p: ProfileForm) => ({
-  fullName: p.fullName,
-  docType: p.docType,
-  docNumber: p.docNumber,
-  birthDate: p.birthDate,
-  phone: p.phone,
-  emergencyName: p.emergencyName,
-  emergencyRelationship: p.emergencyRelationship,
-  emergencyPhone: p.emergencyPhone,
-  insuranceSystem: p.insuranceSystem,
-  insuranceDetail: p.insuranceDetail,
-  bloodType: p.bloodType,
-  allergies: p.allergies,
-  conditions: p.conditions,
-  medications: p.medications,
-  updatedAt: serverTimestamp(),
-})
-
 /**
  * Mantiene al día la ficha compartida en los eventos donde la persona sigue confirmada
  * (y que aún no cierran el acceso). Se llama al guardar Mis datos y al abrir la app.
@@ -320,7 +341,11 @@ const sensitiveFields = (p: ProfileForm) => ({
  */
 export async function refreshSharedFichas(uid: string): Promise<number> {
   const rows = await getDocs(query(collectionGroup(db, 'participants'), where('uid', '==', uid), limit(100)))
-  const targets = rows.docs.filter((d) => d.data().status === 'confirmed' && d.data().role === 'participant')
+  // Participantes confirmados, y el organizador si compartió su ficha
+  const targets = rows.docs.filter((d) => {
+    const v = d.data()
+    return v.status === 'confirmed' && (v.role === 'participant' || (v.role === 'organizer' && !!v.consent))
+  })
   if (!targets.length) return 0
   const events = await Promise.all(targets.map((d) => getDoc(d.ref.parent.parent!).then((e) => (e.exists() ? parseEvent(e.id, e.data()) : null))))
   const live = events.filter((e): e is EventDoc => !!e && e.status === 'published' && sensitiveWindowOpen(e))
@@ -416,7 +441,7 @@ export async function saveFichasOffline(
   participants: Participant[],
   already: Record<string, { savedAt: number }> = {},
 ): Promise<{ saved: Record<string, { name: string; data: SensitiveData; savedAt: number }>; skipped: number; failed: number }> {
-  const confirmed = participants.filter((p) => p.role === 'participant' && p.status === 'confirmed')
+  const confirmed = participants.filter((p) => sharesFicha(p) && p.uid !== actor.uid)
   const targets = confirmed.filter((p) => !already[p.uid] || p.updatedAt > already[p.uid].savedAt)
   // Lotes de 8: cada participante hace que las reglas lean varios documentos (límite por lote)
   for (let i = 0; i < targets.length; i += 8) {

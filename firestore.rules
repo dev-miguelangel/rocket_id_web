@@ -314,12 +314,17 @@ service cloud.firestore {
           );
         // Solo la propia persona cambia su estado (confirmar con consentimiento / rechazar)…
         allow update: if request.auth != null && pid == request.auth.uid
-          && resource.data.role == 'participant'
           && (
-            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'emergencyComplete', 'consent', 'updatedAt'])
+            (resource.data.role == 'participant'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'emergencyComplete', 'consent', 'updatedAt'])
               && request.resource.data.status in ['confirmed', 'declined']
               && request.resource.data.emergencyComplete is bool
               && (request.resource.data.status == 'declined' || request.resource.data.consent.acceptedAt == request.time))
+            // …el organizador comparte su propia ficha (con consentimiento, sin cambiar su rol ni estado)…
+            || (resource.data.role == 'organizer'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emergencyComplete', 'consent', 'updatedAt'])
+              && request.resource.data.emergencyComplete is bool
+              && request.resource.data.consent.acceptedAt == request.time)
             // …o, ya confirmada, mantiene al día el indicador de ficha completa (sin tocar estado ni consentimiento)
             || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emergencyComplete', 'updatedAt'])
               && resource.data.status == 'confirmed'
@@ -337,6 +342,8 @@ service cloud.firestore {
       match /sensitive/{pid} {
         allow create, update: if request.auth != null && pid == request.auth.uid
           && getAfter(participantPath(eid, pid)).data.status == 'confirmed'
+          // el organizador solo comparte su ficha si dio su consentimiento
+          && (getAfter(participantPath(eid, pid)).data.role == 'participant' || 'consent' in getAfter(participantPath(eid, pid)).data)
           && request.resource.data.keys().hasOnly(['fullName', 'docType', 'docNumber', 'birthDate', 'phone',
               'emergencyName', 'emergencyRelationship', 'emergencyPhone', 'insuranceSystem', 'insuranceDetail',
               'bloodType', 'allergies', 'conditions', 'medications', 'updatedAt']);

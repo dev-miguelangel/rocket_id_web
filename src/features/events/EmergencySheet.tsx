@@ -4,7 +4,7 @@ import { Avatar } from '../../components/Avatar'
 import { BottomSheet } from '../../components/Sheet'
 import { useAuth } from '../auth/AuthProvider'
 import { subscribeParticipants } from './eventsApi'
-import type { EventDoc, Participant } from './schema'
+import { sharesFicha, type EventDoc, type Participant } from './schema'
 
 /** Números de emergencia de Chile. Las llamadas de emergencia funcionan sin datos móviles. */
 export const EMERGENCY_NUMBERS = [
@@ -35,7 +35,8 @@ export function EmergencySheet({ event, open, onClose }: { event: EventDoc; open
     onClose()
   }
 
-  const others = (participants ?? []).filter((p) => p.role === 'participant' && p.status === 'confirmed' && p.uid !== user?.uid)
+  // Confirmados y el organizador (si compartió su ficha), excepto yo
+  const others = (participants ?? []).filter((p) => sharesFicha(p) && p.uid !== user?.uid)
 
   const openFicha = (uid: string) => {
     close()
@@ -111,7 +112,10 @@ export function EmergencySheet({ event, open, onClose }: { event: EventDoc; open
                 <button type="button" onClick={() => openFicha(p.uid)} className="flex min-h-16 w-full items-center gap-3 px-4 py-2 text-left active:bg-line/60">
                   <Avatar name={p.displayName} photoURL={p.photoURL} className="size-11" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-base font-semibold text-fg">{p.displayName}</span>
+                    <span className="block truncate text-base font-semibold text-fg">
+                      {p.displayName}
+                      {p.role === 'organizer' && <span className="font-normal text-muted"> · organiza</span>}
+                    </span>
                     <span className="block font-mono text-xs whitespace-nowrap text-muted">{p.rocketId}</span>
                   </span>
                   {!p.emergencyComplete && (

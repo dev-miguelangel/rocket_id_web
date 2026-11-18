@@ -114,22 +114,27 @@ function ActiveEventCard({ row }: { row: MyEventRow }) {
           <p className="mt-2 text-sm font-medium">Organizas esta salida</p>
         )}
       </div>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 bg-black/15 p-3">
-        <button
-          type="button"
-          onClick={() => setSos(true)}
-          className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-red-600 text-lg font-extrabold tracking-wide text-white shadow-lg shadow-red-950/30 active:bg-red-700"
-        >
-          🆘 EMERGENCIA
-        </button>
+      {/* El botón de emergencia solo existe mientras el evento está ocurriendo (inicio → término) */}
+      <div className={`grid gap-2 bg-black/15 p-3 ${ongoing ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1'}`}>
+        {ongoing && (
+          <button
+            type="button"
+            onClick={() => setSos(true)}
+            className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-red-600 text-lg font-extrabold tracking-wide text-white shadow-lg shadow-red-950/30 active:bg-red-700"
+          >
+            🆘 EMERGENCIA
+          </button>
+        )}
         <Link
           to={`/e/${e.id}`}
-          className="flex h-14 items-center justify-center rounded-2xl bg-white/15 px-4 text-base font-semibold text-white ring-1 ring-white/30 active:bg-white/25"
+          className={`flex items-center justify-center rounded-2xl px-4 font-semibold active:opacity-80 ${
+            ongoing ? 'h-14 bg-white/15 text-base text-white ring-1 ring-white/30' : 'h-12 bg-white text-base text-primary-text'
+          }`}
         >
           Ver evento
         </Link>
       </div>
-      <EmergencySheet event={e} open={sos} onClose={close} />
+      {ongoing && <EmergencySheet event={e} open={sos} onClose={close} />}
     </section>
   );
 }

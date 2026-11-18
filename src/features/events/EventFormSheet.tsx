@@ -3,7 +3,7 @@ import { Field, Segmented, dateInputClass, inputClass, textareaClass } from '../
 import { BottomSheet, Sheet } from '../../components/Sheet'
 import { SKILL_CATEGORIES, categoryOf, type CategoryId } from '../skills/schema'
 import { createEvent, updateEvent, type EventInput } from './eventsApi'
-import { EVENT_ACTIVITIES, PUBLIC_RESPONSIBILITIES, type EventDoc, type Requirement, type Visibility } from './schema'
+import { EVENT_ACTIVITIES, ORGANIZER_CONSENT_TEXT, PUBLIC_RESPONSIBILITIES, type EventDoc, type Requirement, type Visibility } from './schema'
 import { useMe } from './useMe'
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -18,7 +18,7 @@ function defaults() {
   return { start: toLocalInput(start), end: toLocalInput(end) }
 }
 
-type Errors = Partial<Record<'title' | 'start' | 'end' | 'location' | 'general', string>>
+type Errors = Partial<Record<'title' | 'start' | 'end' | 'location' | 'general' | 'ficha', string>>
 
 interface Props {
   open: boolean
@@ -45,6 +45,8 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
   const [visibility, setVisibility] = useState<Visibility>(event?.visibility ?? 'private')
   // Un evento que ya era público ya aceptó las responsabilidades
   const [publicAck, setPublicAck] = useState(event?.visibility === 'public')
+  // El organizador también comparte su ficha, para que esté disponible si es quien tiene la emergencia
+  const [shareFicha, setShareFicha] = useState(false)
   const [ackOpen, setAckOpen] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
   // ¿Cambió algo respecto de lo que había al abrir? (para confirmar antes de descartar)
@@ -90,6 +92,7 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
     setRequirements([])
     setVisibility('private')
     setPublicAck(false)
+    setShareFicha(false)
     setErrors({})
   }
 
@@ -105,6 +108,7 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
     if (!editing && s.getTime() < Date.now() - 3_600_000) errs.start = 'Esa fecha ya pasó: elige una fecha futura.'
     if (!location.trim()) errs.location = 'Indica el lugar o la ruta para que el grupo sepa dónde es.'
     if (visibility === 'public' && !publicAck) errs.general = 'Para publicar debes aceptar las responsabilidades.'
+    if (!editing && !shareFicha) errs.ficha = 'Marca la casilla: tu ficha debe estar disponible por si la emergencia es tuya.'
     setErrors(errs)
     if (Object.keys(errs).length) return
     setSaving(true)
@@ -121,6 +125,7 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
         capacity: Number(capacity) || 0,
         requirements,
         publicAck,
+        shareFicha: !editing && shareFicha,
       }
       if (event) {
         await updateEvent(event, input, me)
@@ -242,6 +247,26 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
               : 'Aparece en “Explorar” y cualquier persona con cuenta puede unirse.'}
           </p>
         </div>
+
+        {!editing && (
+          <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border bg-card p-4 active:bg-line/40 ${errors.ficha ? 'border-red-500' : 'border-line'}`}>
+            <input
+              type="checkbox"
+              checked={shareFicha}
+              onChange={(e) => {
+                setShareFicha(e.target.checked)
+                setErrors((x) => ({ ...x, ficha: undefined }))
+              }}
+              className="mt-0.5 size-6 shrink-0 accent-[#0F766E]"
+              aria-invalid={errors.ficha ? true : undefined}
+            />
+            <span>
+              <span className="block text-base font-medium text-fg">Comparto mi ficha de emergencia</span>
+              <span className="mt-0.5 block text-sm text-muted">{ORGANIZER_CONSENT_TEXT}</span>
+              {errors.ficha && <span className="mt-1 block text-sm text-red-600 dark:text-red-400">⚠️ {errors.ficha}</span>}
+            </span>
+          </label>
+        )}
 
         {errors.general && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">{errors.general}</p>}
       </Sheet>

@@ -57,7 +57,15 @@ export interface Participant {
   emergencyComplete: boolean
   /** Última actualización de su participación o ficha (ms) */
   updatedAt: number
+  /** Dio su consentimiento para compartir la ficha (los participantes, al confirmar; el organizador, explícitamente) */
+  consented: boolean
 }
+
+/** ¿Su ficha está disponible para el equipo de seguridad y para emergencias? */
+export const sharesFicha = (p: Participant) => p.status === 'confirmed' && (p.role === 'participant' || p.consented)
+
+export const ORGANIZER_CONSENT_TEXT =
+  'Comparto mi ficha de emergencia con el equipo de seguridad del evento y, ante una emergencia durante la salida, con los participantes confirmados. Recibiré un aviso cada vez que alguien la vea.'
 
 export const PARTICIPANT_STATUS = {
   invited: { label: 'Invitado', tone: 'info' },

@@ -23,6 +23,7 @@ import {
   removeParticipant,
   saveFichasOffline,
   setCoOrganizer,
+  shareOrganizerFicha,
   subscribeEvent,
   subscribeParticipants,
   viewSensitive,
@@ -33,6 +34,7 @@ import { Chip, ParticipantChip, VisibilityChip } from './parts'
 import {
   EVENT_CONSENT_TEXT,
   MAX_CO_ORGANIZERS,
+  ORGANIZER_CONSENT_TEXT,
   activityOf,
   emergencyWindowOpen,
   formatEventDate,
@@ -41,6 +43,7 @@ import {
   type EventDoc,
   type Participant,
   type Requirement,
+  sharesFicha,
 } from './schema'
 import { useMe } from './useMe'
 import { useOnline } from '../../lib/useOnline'
@@ -256,6 +259,10 @@ export function EventDetailPage() {
         </Block>
       )}
 
+      {isOrganizer && !cancelled && sensitiveWindowOpen(event) && myRow && !myRow.consented && (
+        <ShareOwnFicha event={event} onDone={() => toast.show('Tu ficha ya está disponible para emergencias')} />
+      )}
+
       {participants && <SafetyTeam event={event} participants={participants} />}
 
       {isLead && !cancelled && sensitiveWindowOpen(event) && (
@@ -294,7 +301,7 @@ export function EventDetailPage() {
                         </span>
                         <span className="block font-mono text-xs tracking-wide whitespace-nowrap text-muted">{p.rocketId}</span>
                       </span>
-                      {isLead && p.role === 'participant' && p.status === 'confirmed' && !p.emergencyComplete && (
+                      {isLead && sharesFicha(p) && p.uid !== user?.uid && !p.emergencyComplete && (
                         <span title="Ficha de emergencia incompleta" aria-label="Ficha de emergencia incompleta">⚠️</span>
                       )}
                       {p.role === 'organizer' ? (
@@ -628,7 +635,7 @@ function ParticipantSheet({ participant, event, isOrganizer, isLead, iAmConfirme
   const [data, setData] = useState<SensitiveData | null | undefined>(undefined)
   const [loading, setLoading] = useState(false)
 
-  const confirmedP = (p: Participant) => p.role === 'participant' && p.status === 'confirmed'
+  const confirmedP = (p: Participant) => sharesFicha(p)
   const leadCanView = (p: Participant) => isLead && confirmedP(p) && sensitiveWindowOpen(event) && event.status === 'published'
   const canEmergencyFor = (p: Participant) =>
     !isLead && iAmConfirmed && confirmedP(p) && p.uid !== me?.uid && emergencyWindowOpen(event) && online
@@ -663,12 +670,13 @@ function ParticipantSheet({ participant, event, isOrganizer, isLead, iAmConfirme
   }, [participant])
 
   if (!shown) return null
-  const isConfirmedParticipant = shown.role === 'participant' && shown.status === 'confirmed'
+  const isConfirmedParticipant = sharesFicha(shown) && shown.uid !== me?.uid
   const canView = isLead && isConfirmedParticipant && sensitiveWindowOpen(event) && event.status === 'published'
   // Acceso de emergencia: confirmados que no son del equipo, solo durante la salida y con conexión
   const canEmergency = !isLead && iAmConfirmed && isConfirmedParticipant && shown.uid !== me?.uid && emergencyWindowOpen(event) && online
   const isCoOrg = event.coOrganizers.includes(shown.uid)
-  const canManageTeam = isOrganizer && isConfirmedParticipant && event.status === 'published' && (isCoOrg || event.coOrganizers.length < MAX_CO_ORGANIZERS)
+  const canManageTeam =
+    isOrganizer && shown.role === 'participant' && shown.status === 'confirmed' && event.status === 'published' && (isCoOrg || event.coOrganizers.length < MAX_CO_ORGANIZERS)
 
   const toggleTeam = async () => {
     if (!me) return
@@ -926,7 +934,7 @@ function OfflineStatus({ event, participants, onOpen }: { event: EventDoc; parti
   const me = useMe()
   const online = useOnline()
   const saved = me ? getOfflineEvent(event.id, me.uid) : null
-  const confirmed = participants.filter((p) => p.role === 'participant' && p.status === 'confirmed')
+  const confirmed = participants.filter((p) => sharesFicha(p) && p.uid !== me?.uid)
   const savedCount = saved ? confirmed.filter((p) => saved.fichas[p.uid]).length : 0
   const outdated = saved ? confirmed.filter((p) => !saved.fichas[p.uid] || p.updatedAt > saved.fichas[p.uid].savedAt).length : 0
   if (!confirmed.length && !saved) return null
@@ -981,7 +989,7 @@ function OfflineFichasSheet({
   const [error, setError] = useState<string | null>(null)
   const [, force] = useState(0)
   const saved = me ? getOfflineEvent(event.id, me.uid) : null
-  const confirmed = participants.filter((p) => p.role === 'participant' && p.status === 'confirmed')
+  const confirmed = participants.filter((p) => sharesFicha(p) && p.uid !== me?.uid)
   const pending = confirmed.filter((p) => !saved?.fichas[p.uid] || p.updatedAt > (saved?.fichas[p.uid]?.savedAt ?? 0))
 
   const save = async () => {
@@ -1117,6 +1125,46 @@ function SafetyTeam({ event, participants }: { event: EventDoc; participants: Pa
           Sin respaldo designado. Si el organizador no está disponible, cualquier confirmado puede usar el acceso de emergencia durante la salida.
         </p>
       )}
+    </section>
+  )
+}
+
+// ---------- El organizador comparte su propia ficha (eventos existentes) ----------
+
+function ShareOwnFicha({ event, onDone }: { event: EventDoc; onDone: () => void }) {
+  const me = useMe()
+  const [ok, setOk] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(false)
+  const share = async () => {
+    if (!me) return
+    setBusy(true)
+    setError(false)
+    try {
+      await shareOrganizerFicha(event, me)
+      navigator.vibrate?.(10)
+      onDone()
+    } catch (e) {
+      console.error('shareOrganizerFicha', e)
+      setError(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <section className="space-y-3 rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 dark:border-amber-500/40 dark:bg-amber-500/10">
+      <p className="flex items-start gap-2 text-base font-semibold text-amber-950 dark:text-amber-100">
+        <span aria-hidden="true">⚠️</span>
+        Tu ficha no está disponible si la emergencia es tuya
+      </p>
+      <label className="flex cursor-pointer items-start gap-3">
+        <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="mt-0.5 size-6 shrink-0 accent-[#0F766E]" />
+        <span className="text-sm text-amber-950 dark:text-amber-100">{ORGANIZER_CONSENT_TEXT}</span>
+      </label>
+      {error && <p className="text-sm text-red-700 dark:text-red-300">⚠️ No se pudo compartir. Revisa tu conexión e inténtalo de nuevo.</p>}
+      <button type="button" onClick={share} disabled={!ok || busy} className={primaryBtn}>
+        {busy ? 'Compartiendo…' : 'Compartir mi ficha'}
+      </button>
     </section>
   )
 }
