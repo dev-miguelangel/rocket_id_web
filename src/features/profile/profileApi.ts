@@ -1,6 +1,6 @@
 import { doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
-import { EMERGENCY_KEYS, IDENTITY_KEYS, emptyProfile, type ProfileForm } from './schema'
+import { EMERGENCY_KEYS, IDENTITY_KEYS, emptyProfile, normalizeInsurance, type ProfileForm } from './schema'
 
 const identityRef = (uid: string) => doc(db, 'users', uid)
 const emergencyRef = (uid: string) => doc(db, 'users', uid, 'private', 'emergency')
@@ -25,6 +25,7 @@ export function subscribeProfile(
       const v = (k in emergency ? emergency : identity)[k]
       if (typeof v === 'string') merged[k] = v
     }
+    merged.insuranceSystem = normalizeInsurance(merged.insuranceSystem)
     onLoad(merged, {
       email: typeof identity.email === 'string' ? identity.email : '',
       name: typeof identity.displayName === 'string' ? identity.displayName : '',

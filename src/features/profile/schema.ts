@@ -9,10 +9,13 @@ export const DOC_TYPES = [
 export const INSURANCE_SYSTEMS = [
   { value: 'fonasa', label: 'Fonasa' },
   { value: 'isapre', label: 'Isapre' },
-  { value: 'private', label: 'Seguro privado' },
   { value: 'other', label: 'Otro' },
-  { value: 'none', label: 'Sin previsión' },
 ] as const
+
+/** Valores de versiones anteriores que ya no existen como opción */
+export function normalizeInsurance(v: string) {
+  return v === 'private' || v === 'none' ? 'other' : v
+}
 
 export const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'unknown'] as const
 
@@ -73,7 +76,7 @@ export const emptyProfile: ProfileForm = {
 }
 
 /** Límites de largo; deben coincidir con firestore.rules */
-export const MAX_LEN = { short: 120, long: 1000 } as const
+export const MAX_LEN = { short: 120, medium: 500, long: 1000 } as const
 
 // ---------- RUT chileno ----------
 

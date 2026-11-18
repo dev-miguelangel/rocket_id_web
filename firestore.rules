@@ -41,7 +41,7 @@ service cloud.firestore {
           && optStr(request.resource.data, 'emergencyRelationship', 60)
           && optStr(request.resource.data, 'emergencyPhone', 20)
           && optStr(request.resource.data, 'insuranceSystem', 20)
-          && optStr(request.resource.data, 'insuranceDetail', 120)
+          && optStr(request.resource.data, 'insuranceDetail', 500)
           && optStr(request.resource.data, 'bloodType', 10)
           && optStr(request.resource.data, 'allergies', 1000)
           && optStr(request.resource.data, 'conditions', 1000)
