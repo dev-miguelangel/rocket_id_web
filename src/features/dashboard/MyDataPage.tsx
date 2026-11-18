@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Field, FormSection, inputClass, textareaClass } from '../../components/form'
+import { Field, FormSection, dateInputClass, inputClass, textareaClass } from '../../components/form'
 import { useAuth } from '../auth/AuthProvider'
 import { saveProfile, subscribeProfile } from '../profile/profileApi'
 import {
@@ -105,7 +105,7 @@ export function MyDataPage() {
           )}
         </Field>
 
-        <div className="grid grid-cols-[7.5rem_1fr] gap-3">
+        <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
           <Field label="Documento">
             {(a) => (
               <select {...a} className={inputClass} value={form.docType} onChange={(e) => set('docType', e.target.value)}>
@@ -125,7 +125,7 @@ export function MyDataPage() {
 
         <Field label="Fecha de nacimiento" error={errors.birthDate} hint={age !== null && age >= 0 ? `${age} años` : undefined}>
           {(a) => (
-            <input {...a} type="date" className={inputClass} value={form.birthDate} max={today} autoComplete="bday"
+            <input {...a} type="date" className={dateInputClass} value={form.birthDate} max={today} autoComplete="bday"
               onChange={(e) => set('birthDate', e.target.value)} />
           )}
         </Field>

@@ -3,6 +3,8 @@ import { useId, type ReactNode } from 'react'
 export const inputClass =
   'mt-1 h-12 w-full rounded-xl border border-line-strong bg-card px-3 text-base text-fg outline-none placeholder:text-subtle focus:border-primary focus:ring-2 focus:ring-primary/20 aria-invalid:border-red-500 aria-invalid:ring-red-500/20'
 
+export const dateInputClass = `${inputClass} date-input`
+
 export const textareaClass = inputClass.replace('h-12', 'min-h-24 py-3')
 
 interface FieldProps {
@@ -17,7 +19,7 @@ export function Field({ label, hint, error, children }: FieldProps) {
   const id = useId()
   const descId = `${id}-desc`
   return (
-    <div>
+    <div className="min-w-0">
       <label htmlFor={id} className="text-sm font-medium text-fg-soft">
         {label}
       </label>

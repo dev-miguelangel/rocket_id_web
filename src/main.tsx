@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router'
 import './index.css'
+import { StatusBarScrim } from './components/StatusBarScrim'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { useTheme } from './lib/theme'
 import { AuthProvider } from './features/auth/AuthProvider'
@@ -39,9 +40,12 @@ function ThemeSync() {
   return null
 }
 
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false })
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeSync />
+    <StatusBarScrim />
     <AuthProvider>
       <RouterProvider router={router} />
       <UpdatePrompt />
