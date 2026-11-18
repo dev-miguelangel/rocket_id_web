@@ -41,6 +41,27 @@ export const SKILL_CATEGORIES = [
     ],
   },
   {
+    id: 'technical',
+    label: 'Formación técnica outdoor',
+    short: 'Formación técnica',
+    icon: '🎒',
+    suggestions: [
+      'Curso básico de montaña',
+      'Iniciación a la escalada',
+      'Escalada deportiva',
+      'Escalada tradicional',
+      'Escalada en hielo',
+      'Alta montaña / técnica de glaciar',
+      'Esquí de montaña (randonée)',
+      'Kayak de río',
+      'Kayak de mar',
+      'Rafting',
+      'Buceo Open Water',
+      'Buceo Advanced',
+      'Ciclismo de montaña (MTB)',
+    ],
+  },
+  {
     id: 'guiding',
     label: 'Guía y liderazgo outdoor',
     short: 'Guía',
@@ -74,6 +95,8 @@ export const ISSUER_SUGGESTIONS = [
   'ENAM',
   'Federación de Andinismo de Chile',
   'Leave No Trace',
+  'PADI',
+  'SSI',
 ]
 
 export const CERT_STATUSES = [
