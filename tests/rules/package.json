@@ -1,0 +1,11 @@
+{
+  "name": "rocketid-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Pruebas de firestore.rules contra el emulador. Dependencias aisladas: rules-unit-testing exige firebase 12 y la app usa firebase 13.",
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.19.0",
+    "firebase-tools": "15.36.0"
+  }
+}

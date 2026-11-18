@@ -8,7 +8,8 @@ import { join } from 'node:path'
 import { applicationDefault, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 
-export const PROJECT_ID = 'rocketid-c55d5'
+// En el emulador se usa el proyecto de la sesión (emulators:exec define GCLOUD_PROJECT)
+export const PROJECT_ID = process.env.FIRESTORE_EMULATOR_HOST ? process.env.GCLOUD_PROJECT || 'demo-rocketid' : 'rocketid-c55d5'
 
 /** Identificador de esta tanda de datos mock. Todo lo creado lo lleva en `_mock.seed`. */
 export const SEED_ID = 'mock-users-v1'
