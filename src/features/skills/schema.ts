@@ -220,3 +220,60 @@ export function parseSkills(raw: Record<string, unknown> | undefined): SkillsDat
     : []
   return { hasCertifications: has, categories, certifications }
 }
+
+// ---------- Verificación por la institución emisora ----------
+// Documento users/{uid}/private/verifications — solo lectura para la persona.
+// Lo escribirá la app de instituciones (por ahora: consola de Firebase / Admin SDK).
+
+/** Datos de la certificación tal como fueron verificados */
+export interface VerifiedSnapshot {
+  name: string
+  issuer: string
+  year: string
+  expiresAt: string
+}
+
+export interface Verification {
+  verifiedBy: string // nombre de la institución que verificó
+  verifiedAt: Date | null
+  snapshot: VerifiedSnapshot
+}
+
+export type Verifications = Record<string, Verification>
+
+const norm = (v: string) => v.trim().toLocaleLowerCase('es').replace(/\s+/g, ' ')
+
+/**
+ * Una certificación está verificada solo si sus datos coinciden con lo que verificó la institución.
+ * Si la persona edita nombre, institución, año o vencimiento, la verificación deja de aplicar.
+ */
+export function verificationFor(cert: Certification, all: Verifications): Verification | null {
+  const v = all[cert.id]
+  if (!v) return null
+  const s = v.snapshot
+  const same =
+    norm(s.name) === norm(cert.name) &&
+    norm(s.issuer) === norm(cert.issuer) &&
+    s.year === cert.year &&
+    s.expiresAt === cert.expiresAt
+  return same ? v : null
+}
+
+export function parseVerifications(raw: Record<string, unknown> | undefined): Verifications {
+  const certs = raw?.certs
+  if (!certs || typeof certs !== 'object') return {}
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
+  const out: Verifications = {}
+  for (const [id, value] of Object.entries(certs as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue
+    const v = value as Record<string, unknown>
+    const snap = (v.snapshot && typeof v.snapshot === 'object' ? v.snapshot : {}) as Record<string, unknown>
+    const at = v.verifiedAt as { toDate?: () => Date } | undefined
+    out[id] = {
+      verifiedBy: str(v.verifiedBy),
+      verifiedAt: typeof at?.toDate === 'function' ? at.toDate() : null,
+      snapshot: { name: str(snap.name), issuer: str(snap.issuer), year: str(snap.year), expiresAt: str(snap.expiresAt) },
+    }
+  }
+  return out
+}

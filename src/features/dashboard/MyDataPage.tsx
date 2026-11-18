@@ -6,8 +6,8 @@ import { saveProfile, subscribeProfile } from '../profile/profileApi'
 import { CRITICAL_FIELDS, emptyProfile, formatRut, validate, type ProfileErrors, type ProfileForm } from '../profile/schema'
 import { ContactForm, HealthForm, IdentityForm, ReadSection, SECTIONS, rowsFor, type SectionId } from '../profile/sections'
 import { SKILLS_TITLE, SkillsForm, SkillsReadSection } from '../skills/SkillsSection'
-import { emptySkills, hasSkillsErrors, validateSkills, type SkillsData, type SkillsErrors } from '../skills/schema'
-import { saveSkills, subscribeSkills } from '../skills/skillsApi'
+import { emptySkills, hasSkillsErrors, validateSkills, type SkillsData, type SkillsErrors, type Verifications } from '../skills/schema'
+import { saveSkills, subscribeSkills, subscribeVerifications } from '../skills/skillsApi'
 
 const FORMS = { identity: IdentityForm, contact: ContactForm, health: HealthForm }
 
@@ -15,6 +15,7 @@ export function MyDataPage() {
   const { user } = useAuth()
   const [profile, setProfile] = useState<ProfileForm | null>(null)
   const [skills, setSkills] = useState<SkillsData | null>(null)
+  const [verifications, setVerifications] = useState<Verifications>({})
   const [skillsDraft, setSkillsDraft] = useState<SkillsData>(emptySkills)
   const [skillsErrors, setSkillsErrors] = useState<SkillsErrors>({ certs: {} })
   const [editing, setEditing] = useState<SectionId | 'skills' | null>(null)
@@ -34,6 +35,11 @@ export function MyDataPage() {
   useEffect(() => {
     if (!user) return
     return subscribeSkills(user.uid, setSkills)
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    return subscribeVerifications(user.uid, setVerifications)
   }, [user])
 
   useEffect(() => {
@@ -153,7 +159,7 @@ export function MyDataPage() {
         <ReadSection key={s.id} title={s.title} icon={s.icon} rows={rowsFor(s.id, profile)} onEdit={() => openEditor(s.id)} />
       ))}
 
-      <SkillsReadSection data={skills ?? emptySkills} onEdit={() => openEditor('skills')} />
+      <SkillsReadSection data={skills ?? emptySkills} verifications={verifications} onEdit={() => openEditor('skills')} />
 
       <p className="px-4 text-center text-xs text-subtle">🔒 Solo tú puedes ver estos datos.</p>
 
@@ -166,7 +172,7 @@ export function MyDataPage() {
         canSave={dirty}
       >
         {EditForm && <EditForm form={draft} errors={errors} set={set} />}
-        {editing === 'skills' && <SkillsForm value={skillsDraft} errors={skillsErrors} onChange={changeSkills} />}
+        {editing === 'skills' && <SkillsForm value={skillsDraft} verifications={verifications} errors={skillsErrors} onChange={changeSkills} />}
       </Sheet>
 
       {/* Toast de confirmación, sobre la navegación inferior */}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Field, Segmented, inputClass } from '../../components/form'
+import { VerifiedBadge } from '../../components/VerifiedBadge'
 import {
   CERT_STATUSES,
   ISSUER_SUGGESTIONS,
@@ -10,10 +11,13 @@ import {
   formatMonth,
   isPastExpiry,
   statusOf,
+  verificationFor,
   type CategoryId,
   type Certification,
   type SkillsData,
   type SkillsErrors,
+  type Verification,
+  type Verifications,
 } from './schema'
 
 export const SKILLS_TITLE = 'Conocimientos y experiencia'
@@ -35,9 +39,23 @@ function StatusBadge({ status }: { status: string }) {
 const certSubtitle = (c: Certification) =>
   [c.issuer, c.year, c.expiresAt && `vence ${formatMonth(c.expiresAt)}`].filter(Boolean).join(' · ')
 
+const verifiedText = (v: Verification) =>
+  `Verificado por ${v.verifiedBy || 'la institución'}${
+    v.verifiedAt ? ` · ${v.verifiedAt.toLocaleDateString('es', { month: 'short', year: 'numeric' }).replace('.', '')}` : ''
+  }`
+
 // ---------- Modo lectura ----------
 
-export function SkillsReadSection({ data, onEdit }: { data: SkillsData; onEdit: () => void }) {
+export function SkillsReadSection({
+  data,
+  verifications,
+  onEdit,
+}: {
+  data: SkillsData
+  verifications: Verifications
+  onEdit: () => void
+}) {
+  const anyVerified = data.certifications.some((c) => verificationFor(c, verifications))
   return (
     <section>
       <div className="mb-1.5 flex items-end justify-between px-4">
@@ -74,6 +92,7 @@ export function SkillsReadSection({ data, onEdit }: { data: SkillsData; onEdit: 
             <ul className="divide-y divide-line">
               {data.certifications.map((c) => {
                 const stale = c.status === 'active' && isPastExpiry(c.expiresAt)
+                const v = verificationFor(c, verifications)
                 return (
                   <li key={c.id}>
                     <button type="button" onClick={onEdit} className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-line/60">
@@ -81,8 +100,12 @@ export function SkillsReadSection({ data, onEdit }: { data: SkillsData; onEdit: 
                         {categoryOf(c.category)?.icon ?? '📄'}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-base font-medium break-words text-fg">{c.name}</span>
+                        <span className="block text-base font-medium break-words text-fg">
+                          {c.name}
+                          {v && <VerifiedBadge className="ml-1 size-4 -translate-y-px align-middle" />}
+                        </span>
                         <span className="block text-sm break-words text-muted">{certSubtitle(c)}</span>
+                        {v && <span className="mt-0.5 block text-xs font-medium text-blue-600 dark:text-blue-400">{verifiedText(v)}</span>}
                         {stale && <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">⚠️ Revisa la vigencia</span>}
                       </span>
                       <StatusBadge status={c.status} />
@@ -91,6 +114,12 @@ export function SkillsReadSection({ data, onEdit }: { data: SkillsData; onEdit: 
                 )
               })}
             </ul>
+            <p className="flex items-center gap-1.5 border-t border-line px-4 py-2.5 text-xs text-muted">
+              <VerifiedBadge className="size-3.5" />
+              {anyVerified
+                ? 'Verificado por la institución emisora.'
+                : 'Las instituciones podrán verificar tus certificaciones próximamente.'}
+            </p>
           </>
         ) : (
           <button type="button" onClick={onEdit} className="block w-full px-4 py-3 text-left active:bg-line/60">
@@ -109,11 +138,12 @@ export function SkillsReadSection({ data, onEdit }: { data: SkillsData; onEdit: 
 
 interface FormProps {
   value: SkillsData
+  verifications: Verifications
   errors: SkillsErrors
   onChange: (v: SkillsData) => void
 }
 
-export function SkillsForm({ value, errors, onChange }: FormProps) {
+export function SkillsForm({ value, verifications, errors, onChange }: FormProps) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const toggleCategory = (id: CategoryId) =>
@@ -188,6 +218,8 @@ export function SkillsForm({ value, errors, onChange }: FormProps) {
                 <CertCard
                   key={c.id}
                   cert={c}
+                  verification={verificationFor(c, verifications)}
+                  wasVerified={!!verifications[c.id]}
                   errors={errors.certs[c.id]}
                   open={expanded === c.id || !!errors.certs[c.id]}
                   onToggle={() => setExpanded((e) => (e === c.id ? null : c.id))}
@@ -219,6 +251,9 @@ export function SkillsForm({ value, errors, onChange }: FormProps) {
 
 interface CertCardProps {
   cert: Certification
+  verification: Verification | null
+  /** Tenía verificación pero los datos ya no coinciden */
+  wasVerified: boolean
   errors?: Partial<Record<keyof Certification, string>>
   open: boolean
   onToggle: () => void
@@ -226,7 +261,7 @@ interface CertCardProps {
   onRemove: () => void
 }
 
-function CertCard({ cert, errors = {}, open, onToggle, onChange, onRemove }: CertCardProps) {
+function CertCard({ cert, verification, wasVerified, errors = {}, open, onToggle, onChange, onRemove }: CertCardProps) {
   const cat = categoryOf(cert.category)
   const expiredByDate = isPastExpiry(cert.expiresAt)
 
@@ -235,8 +270,9 @@ function CertCard({ cert, errors = {}, open, onToggle, onChange, onRemove }: Cer
       <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-line/60">
         <span className="text-lg" aria-hidden="true">{cat?.icon ?? '📄'}</span>
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-base font-medium ${cert.name ? 'text-fg' : 'text-subtle italic'}`}>
-            {cert.name || 'Nueva certificación'}
+          <span className={`flex items-center gap-1 text-base font-medium ${cert.name ? 'text-fg' : 'text-subtle italic'}`}>
+            <span className="truncate">{cert.name || 'Nueva certificación'}</span>
+            {verification && <VerifiedBadge className="size-4" />}
           </span>
           {certSubtitle(cert) && <span className="block truncate text-sm text-muted">{certSubtitle(cert)}</span>}
         </span>
@@ -246,6 +282,20 @@ function CertCard({ cert, errors = {}, open, onToggle, onChange, onRemove }: Cer
 
       {open && (
         <div className="space-y-4 border-t border-line px-4 pt-4 pb-3">
+          {verification && (
+            <p className="flex items-start gap-2 rounded-xl bg-blue-50 p-3 text-xs text-blue-900 dark:bg-blue-500/10 dark:text-blue-200">
+              <VerifiedBadge className="mt-px size-4" />
+              <span>
+                <strong className="font-semibold">{verifiedText(verification)}.</strong> Si cambias el nombre, la institución, el año o el
+                vencimiento, la verificación se perderá.
+              </span>
+            </p>
+          )}
+          {!verification && wasVerified && (
+            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+              Los datos ya no coinciden con lo verificado por la institución. Al guardar, esta certificación quedará sin verificar.
+            </p>
+          )}
           <Field label="Área" error={errors.category}>
             {(a) => (
               <select {...a} className={inputClass} value={cert.category} onChange={(e) => onChange({ category: e.target.value as CategoryId })}>

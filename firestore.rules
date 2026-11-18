@@ -45,6 +45,14 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Verificaciones de certificaciones hechas por instituciones.
+      // La persona solo puede leerlas; nadie puede escribirlas desde el cliente.
+      // TODO: permitir escritura a instituciones (custom claim) cuando exista su app.
+      match /private/verifications {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
       // Ficha de emergencia (datos sensibles de salud): users/{uid}/private/emergency
       match /private/{docId} {
         allow read: if isOwner(uid) && docId == 'emergency';
