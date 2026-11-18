@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Sheet } from '../../components/Sheet'
+import { toTitleCaseName } from '../../lib/names'
 import { useAuth } from '../auth/AuthProvider'
 import { saveProfile, subscribeProfile } from '../profile/profileApi'
 import { CRITICAL_FIELDS, emptyProfile, formatRut, validate, type ProfileErrors, type ProfileForm } from '../profile/schema'
@@ -19,7 +20,8 @@ export function MyDataPage() {
   useEffect(() => {
     if (!user) return
     return subscribeProfile(user.uid, (p, defaults) =>
-      setProfile({ ...p, fullName: p.fullName || defaults.name, contactEmail: p.contactEmail || defaults.email }),
+      setProfile({ ...p, fullName: toTitleCaseName(p.fullName || defaults.name),
+        emergencyName: toTitleCaseName(p.emergencyName), contactEmail: p.contactEmail || defaults.email }),
     )
   }, [user])
 
@@ -51,7 +53,12 @@ export function MyDataPage() {
   const handleSave = async (e: FormEvent) => {
     e.preventDefault()
     if (!user || !section) return
-    const next = draft.docType === 'rut' && draft.docNumber ? { ...draft, docNumber: formatRut(draft.docNumber) } : draft
+    const next: ProfileForm = {
+      ...draft,
+      fullName: toTitleCaseName(draft.fullName),
+      emergencyName: toTitleCaseName(draft.emergencyName),
+      docNumber: draft.docType === 'rut' && draft.docNumber ? formatRut(draft.docNumber) : draft.docNumber,
+    }
     const all = validate(next)
     const errs = Object.fromEntries(Object.entries(all).filter(([k]) => section.keys.includes(k as keyof ProfileForm)))
     setErrors(errs)

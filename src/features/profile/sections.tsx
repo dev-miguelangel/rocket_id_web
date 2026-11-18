@@ -1,12 +1,18 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { isContactPickerSupported, pickContact } from '../../lib/contactPicker'
+import { toTitleCaseName } from '../../lib/names'
 import { Field, dateInputClass, inputClass, textareaClass } from '../../components/form'
 import {
   BLOOD_TYPES,
   DOC_TYPES,
   INSURANCE_SYSTEMS,
   MAX_LEN,
+  RUT_ERROR_MESSAGES,
   ageFrom,
+  cleanRut,
   formatRut,
+  formatRutLive,
+  rutError,
   type ProfileErrors,
   type ProfileForm,
 } from './schema'
@@ -57,7 +63,7 @@ export function rowsFor(id: SectionId, p: ProfileForm): Row[] {
   switch (id) {
     case 'identity':
       return [
-        { label: 'Nombre completo', value: p.fullName },
+        { label: 'Nombre completo', value: toTitleCaseName(p.fullName) },
         { label: labelOf(DOC_TYPES, p.docType || 'rut'), value: p.docNumber },
         { label: 'Fecha de nacimiento', value: formatBirth(p.birthDate) },
         { label: 'Celular (WhatsApp)', value: p.phone },
@@ -65,7 +71,7 @@ export function rowsFor(id: SectionId, p: ProfileForm): Row[] {
       ]
     case 'contact':
       return [
-        { label: 'Nombre', value: p.emergencyName },
+        { label: 'Nombre', value: toTitleCaseName(p.emergencyName) },
         { label: 'Parentesco', value: p.emergencyRelationship },
         { label: 'Teléfono', value: p.emergencyPhone },
       ]
@@ -134,28 +140,46 @@ function Group({ children, hint }: { children: ReactNode; hint?: string }) {
 
 export function IdentityForm({ form, errors, set }: FormProps) {
   const age = ageFrom(form.birthDate)
+  const [docTouched, setDocTouched] = useState(false)
+  const isRut = form.docType === 'rut'
+  const rutErr = isRut && form.docNumber ? rutError(form.docNumber) : null
+  // El RUT se valida en cuanto está completo (9 caracteres) o al salir del campo
+  const rutComplete = cleanRut(form.docNumber).length >= 8
+  const docError =
+    errors.docNumber ?? (isRut && rutErr && (docTouched || cleanRut(form.docNumber).length >= 9) ? RUT_ERROR_MESSAGES[rutErr] : undefined)
+  const docSuccess = isRut && form.docNumber && !rutErr && rutComplete ? '✓ RUT válido' : undefined
   return (
     <Group hint="Se usa para listas de asistencia, registros de acceso a parques (ej. CONAF) y seguros.">
       <Field label="Nombre completo">
         {(a) => (
           <input {...a} className={inputClass} value={form.fullName} maxLength={MAX_LEN.short} autoComplete="name"
-            onChange={(e) => set('fullName', e.target.value)} />
+            autoCapitalize="words" onChange={(e) => set('fullName', e.target.value)}
+            onBlur={() => set('fullName', toTitleCaseName(form.fullName))} />
         )}
       </Field>
       <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
         <Field label="Documento">
           {(a) => (
-            <select {...a} className={inputClass} value={form.docType} onChange={(e) => set('docType', e.target.value)}>
+            <select {...a} className={inputClass} value={form.docType}
+              onChange={(e) => {
+                set('docType', e.target.value)
+                setDocTouched(false)
+              }}>
               {DOC_TYPES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
           )}
         </Field>
-        <Field label="Número" error={errors.docNumber}>
+        <Field label="Número" error={docError} success={docSuccess}>
           {(a) => (
-            <input {...a} className={inputClass} value={form.docNumber} maxLength={30} autoCapitalize="characters"
-              placeholder={form.docType === 'rut' ? '12.345.678-9' : ''}
-              onChange={(e) => set('docNumber', e.target.value)}
-              onBlur={() => form.docType === 'rut' && form.docNumber && set('docNumber', formatRut(form.docNumber))} />
+            <input {...a} className={inputClass} value={form.docNumber} autoCapitalize="characters" autoComplete="off"
+              spellCheck={false} enterKeyHint="next"
+              maxLength={isRut ? 12 : 20}
+              placeholder={isRut ? '12.345.678-5' : ''}
+              onChange={(e) => set('docNumber', isRut ? formatRutLive(e.target.value) : e.target.value.toUpperCase())}
+              onBlur={() => {
+                setDocTouched(true)
+                if (isRut && form.docNumber) set('docNumber', formatRut(form.docNumber))
+              }} />
           )}
         </Field>
       </div>
@@ -182,12 +206,66 @@ export function IdentityForm({ form, errors, set }: FormProps) {
 }
 
 export function ContactForm({ form, errors, set }: FormProps) {
+  const [phoneOptions, setPhoneOptions] = useState<string[]>([])
+  const [pickError, setPickError] = useState<string | null>(null)
+  const canPick = isContactPickerSupported()
+
+  const handlePick = async () => {
+    setPickError(null)
+    setPhoneOptions([])
+    try {
+      const c = await pickContact()
+      if (!c) return
+      if (c.name) set('emergencyName', toTitleCaseName(c.name).slice(0, MAX_LEN.short))
+      if (c.phones.length === 1) set('emergencyPhone', c.phones[0].slice(0, 20))
+      else if (c.phones.length > 1) setPhoneOptions(c.phones)
+      else setPickError('Ese contacto no tiene teléfono. Ingrésalo a mano.')
+    } catch {
+      setPickError('No se pudo abrir tus contactos.')
+    }
+  }
+
   return (
+    <>
+    {canPick && (
+      <div>
+        <button
+          type="button"
+          onClick={handlePick}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-card text-base font-semibold text-primary-text transition active:scale-[0.98]"
+        >
+          <ContactsIcon />
+          Elegir de mis contactos
+        </button>
+        {pickError && <p className="mt-2 px-4 text-xs text-red-600 dark:text-red-400">{pickError}</p>}
+      </div>
+    )}
+    {phoneOptions.length > 1 && (
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+        <p className="mb-3 text-sm font-medium text-fg">¿Qué número usamos?</p>
+        <div className="flex flex-wrap gap-2">
+          {phoneOptions.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => {
+                set('emergencyPhone', p.slice(0, 20))
+                setPhoneOptions([])
+              }}
+              className="h-11 rounded-full border border-line-strong bg-card px-4 text-sm font-medium text-fg active:bg-line"
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
     <Group hint="Debe ser alguien que no asista a la salida y que esté disponible durante la actividad.">
       <Field label="Nombre">
         {(a) => (
           <input {...a} className={inputClass} value={form.emergencyName} maxLength={MAX_LEN.short} autoComplete="off"
-            onChange={(e) => set('emergencyName', e.target.value)} />
+            autoCapitalize="words" onChange={(e) => set('emergencyName', e.target.value)}
+            onBlur={() => set('emergencyName', toTitleCaseName(form.emergencyName))} />
         )}
       </Field>
       <Field label="Parentesco">
@@ -203,6 +281,17 @@ export function ContactForm({ form, errors, set }: FormProps) {
         )}
       </Field>
     </Group>
+    </>
+  )
+}
+
+function ContactsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M7 18c.8-2 2.7-3 5-3s4.2 1 5 3M2 7h2M2 12h2M2 17h2" />
+    </svg>
   )
 }
 

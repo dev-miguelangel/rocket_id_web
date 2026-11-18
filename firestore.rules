@@ -23,6 +23,10 @@ service cloud.firestore {
         && optStr(request.resource.data, 'fullName', 120)
         && optStr(request.resource.data, 'docType', 20)
         && optStr(request.resource.data, 'docNumber', 30)
+        // Si es RUT, debe venir formateado: 12.345.678-5 / 7.775.735-K
+        && (request.resource.data.get('docType', '') != 'rut'
+            || request.resource.data.get('docNumber', '') == ''
+            || request.resource.data.docNumber.matches('^[0-9]{1,2}[.][0-9]{3}[.][0-9]{3}-[0-9K]$'))
         && optStr(request.resource.data, 'birthDate', 10)
         && optStr(request.resource.data, 'phone', 20)
         && optStr(request.resource.data, 'contactEmail', 120);

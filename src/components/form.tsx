@@ -11,11 +11,12 @@ interface FieldProps {
   label: string
   hint?: string
   error?: string
+  success?: string
   children: (props: { id: string; 'aria-invalid'?: true; 'aria-describedby'?: string }) => ReactNode
 }
 
 /** Etiqueta + control + ayuda/error con los atributos de accesibilidad conectados. */
-export function Field({ label, hint, error, children }: FieldProps) {
+export function Field({ label, hint, error, success, children }: FieldProps) {
   const id = useId()
   const descId = `${id}-desc`
   return (
@@ -26,11 +27,14 @@ export function Field({ label, hint, error, children }: FieldProps) {
       {children({
         id,
         'aria-invalid': error ? true : undefined,
-        'aria-describedby': error || hint ? descId : undefined,
+        'aria-describedby': error || success || hint ? descId : undefined,
       })}
-      {(error || hint) && (
-        <p id={descId} className={`mt-1 text-xs ${error ? 'text-red-600 dark:text-red-400' : 'text-muted'}`}>
-          {error ?? hint}
+      {(error || success || hint) && (
+        <p
+          id={descId}
+          className={`mt-1 text-xs ${error ? 'text-red-600 dark:text-red-400' : success ? 'font-medium text-emerald-700 dark:text-emerald-400' : 'text-muted'}`}
+        >
+          {error ?? success ?? hint}
         </p>
       )}
     </div>

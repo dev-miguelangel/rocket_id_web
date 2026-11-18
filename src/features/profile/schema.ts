@@ -84,12 +84,8 @@ export function cleanRut(v: string) {
   return v.replace(/[^0-9kK]/g, '').toUpperCase()
 }
 
-export function isValidRut(v: string) {
-  const rut = cleanRut(v)
-  if (rut.length < 2) return false
-  const body = rut.slice(0, -1)
-  const dv = rut.slice(-1)
-  if (!/^\d+$/.test(body)) return false
+/** Dígito verificador (módulo 11) para el cuerpo numérico de un RUT */
+export function rutCheckDigit(body: string) {
   let sum = 0
   let mul = 2
   for (let i = body.length - 1; i >= 0; i--) {
@@ -97,8 +93,43 @@ export function isValidRut(v: string) {
     mul = mul === 7 ? 2 : mul + 1
   }
   const res = 11 - (sum % 11)
-  const expected = res === 11 ? '0' : res === 10 ? 'K' : String(res)
-  return dv === expected
+  return res === 11 ? '0' : res === 10 ? 'K' : String(res)
+}
+
+export type RutError = 'format' | 'length' | 'repeated' | 'checkDigit'
+
+/** Devuelve null si el RUT es válido, o el motivo del error. */
+export function rutError(v: string): RutError | null {
+  const raw = v.trim()
+  // Solo dígitos, puntos, guion y K
+  if (!/^[0-9.\-kK\s]+$/.test(raw)) return 'format'
+  const rut = cleanRut(raw)
+  const body = rut.slice(0, -1)
+  const dv = rut.slice(-1)
+  if (!/^\d+$/.test(body) || /K/.test(body)) return 'format'
+  // RUT de personas: 1.000.000 a 99.999.999
+  const n = Number(body)
+  if (body.length < 7 || body.length > 8 || n < 1_000_000) return 'length'
+  // Patrones de relleno típicos (11.111.111-1, 22.222.222-2…)
+  if (/^(\d)\1+$/.test(body)) return 'repeated'
+  if (rutCheckDigit(body) !== dv) return 'checkDigit'
+  return null
+}
+
+export const isValidRut = (v: string) => rutError(v) === null
+
+export const RUT_ERROR_MESSAGES: Record<RutError, string> = {
+  format: 'Solo números y K. Ej: 12.345.678-5',
+  length: 'El RUT debe tener 7 u 8 dígitos más el verificador.',
+  repeated: 'Ingresa un RUT real.',
+  checkDigit: 'El dígito verificador no coincide.',
+}
+
+/** Formatea mientras se escribe: limita a 9 caracteres y agrega puntos y guion. */
+export function formatRutLive(v: string) {
+  const rut = cleanRut(v).replace(/K(?=.)/g, '').slice(0, 9)
+  if (rut.length <= 1) return rut
+  return formatRut(rut)
 }
 
 export function formatRut(v: string) {
@@ -137,7 +168,14 @@ export type ProfileErrors = Partial<Record<keyof ProfileForm, string>>
 /** Errores de formato: bloquean el guardado. Los campos vacíos se permiten (guardado parcial). */
 export function validate(f: ProfileForm): ProfileErrors {
   const e: ProfileErrors = {}
-  if (f.docNumber && f.docType === 'rut' && !isValidRut(f.docNumber)) e.docNumber = 'RUT inválido. Revisa el dígito verificador.'
+  if (f.docNumber) {
+    if (f.docType === 'rut') {
+      const err = rutError(f.docNumber)
+      if (err) e.docNumber = RUT_ERROR_MESSAGES[err]
+    } else if (!/^[A-Za-z0-9.\-]{5,20}$/.test(f.docNumber.trim())) {
+      e.docNumber = 'Entre 5 y 20 letras o números.'
+    }
+  }
   if (f.birthDate) {
     const age = ageFrom(f.birthDate)
     if (age === null || age < 0 || age > 110) e.birthDate = 'Fecha no válida.'

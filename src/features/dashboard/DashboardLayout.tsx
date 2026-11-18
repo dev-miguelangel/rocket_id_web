@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { toTitleCaseName } from '../../lib/names'
 import { useTheme, type ThemePreference } from '../../lib/theme'
 import { useAuth } from '../auth/AuthProvider'
 
@@ -95,7 +96,7 @@ function UserMenu() {
       {open && (
         <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-line bg-card p-2 shadow-xl">
           <div className="px-3 py-2">
-            <p className="truncate font-semibold text-fg">{user?.displayName}</p>
+            <p className="truncate font-semibold text-fg">{toTitleCaseName(user?.displayName)}</p>
             <p className="truncate text-sm text-muted">{user?.email}</p>
           </div>
           <ThemeSwitcher />
