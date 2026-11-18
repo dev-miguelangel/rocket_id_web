@@ -4,6 +4,8 @@ import { RocketIdBadge } from '../../components/RocketIdBadge'
 import { BottomSheet } from '../../components/Sheet'
 import { PrivacySettings } from '../contacts/PrivacySettings'
 import { NotificationsButton } from '../notifications/NotificationsBell'
+import { Onboarding } from '../onboarding/Onboarding'
+import { reopenOnboarding, useOnboarding } from '../onboarding/useOnboarding'
 import { ShareProfile } from '../contacts/ShareProfile'
 import { toTitleCaseName } from '../../lib/names'
 import { useRocketId } from '../auth/useRocketId'
@@ -23,6 +25,7 @@ const alsoActive = (to: string, pathname: string) =>
   (to === '/eventos' && pathname.startsWith('/e/')) || (to === '/cordada' && pathname.startsWith('/perfil/'))
 
 export function DashboardLayout() {
+  const onboarding = useOnboarding()
   const { pathname } = useLocation()
   const tab = tabs.find((t) => (t.end ? pathname === t.to : pathname.startsWith(t.to)))
   const title = tab && 'title' in tab ? tab.title : tab?.label
@@ -42,6 +45,8 @@ export function DashboardLayout() {
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-4 pb-28">
         <Outlet />
       </main>
+
+      <Onboarding open={onboarding.open} onFinish={onboarding.finish} />
 
       <nav
         aria-label="Navegación principal"
@@ -126,6 +131,14 @@ function UserMenu() {
           <div className="border-t border-line py-1">
             <MenuItem icon={<ShareMenuIcon />} label="Compartir mi perfil" onClick={() => openSheet('share')} />
             <MenuItem icon={<LockIcon />} label="Privacidad" onClick={() => openSheet('privacy')} />
+            <MenuItem
+              icon={<span className="text-lg leading-none">🧭</span>}
+              label="Ver recorrido de bienvenida"
+              onClick={() => {
+                setOpen(false)
+                reopenOnboarding()
+              }}
+            />
           </div>
           <ThemeSwitcher />
           <button

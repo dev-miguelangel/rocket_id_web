@@ -55,4 +55,7 @@ await t('Postulación duplicada rechazada', () => assertFails(setDoc(doc(alice, 
   consent: { version: 'v1', acceptedAt: serverTimestamp() }, applicant: { certifications: [] } })))
 await t('Verificaciones no escribibles por la persona', () => assertFails(setDoc(doc(alice, 'users/alice/private/verifications'), { certs: {} })))
 
+await t('La persona marca que terminó el recorrido de primer uso', () => assertSucceeds(setDoc(doc(alice, 'users/alice'), { onboardedAt: serverTimestamp() }, { merge: true })))
+await t('onboardedAt que no es fecha rechazado', () => assertFails(setDoc(doc(alice, 'users/alice'), { onboardedAt: 'ayer' }, { merge: true })))
+await t('Otra persona NO marca el recorrido ajeno', () => assertFails(setDoc(doc(bob, 'users/alice'), { onboardedAt: serverTimestamp() }, { merge: true })))
 await done()

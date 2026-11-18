@@ -8,7 +8,7 @@ import type { Application } from '../courses/schema'
 import { fetchMyEvents, fetchPublicEvents } from '../events/eventsApi'
 import type { EventDoc } from '../events/schema'
 import { subscribeProfile } from '../profile/profileApi'
-import type { ProfileForm } from '../profile/schema'
+import { CRITICAL_FIELDS, type ProfileForm } from '../profile/schema'
 import type { SkillsData, Verifications } from '../skills/schema'
 import { subscribeSkills, subscribeVerifications } from '../skills/skillsApi'
 import { computeStats, pickActiveEvent, recommendCourses, recommendEvents, type MyEventRow } from './insights'
@@ -90,6 +90,12 @@ export function useHomeData() {
       courseRecs: recommendCourses(MOCK_COURSES, ctx),
       eventRecs: recommendEvents(publicEvents, { ...ctx, myUid: user.uid }),
       activeEvent: pickActiveEvent(myEvents ?? []),
+      setup: {
+        profileDone: CRITICAL_FIELDS.every(({ key }) => !!profile?.[key]?.trim()),
+        skillsAnswered: skills?.hasCertifications === 'yes' || skills?.hasCertifications === 'no',
+        hasCordada: (contacts?.length ?? 0) > 0,
+        hasEvent: (myEvents ?? []).length > 0,
+      },
     }
   }, [loading, user, profile, skills, verifications, myEvents, cordadaInUse, contacts, apps, publicEvents])
 }

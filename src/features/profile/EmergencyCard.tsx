@@ -134,6 +134,11 @@ export function EmergencyCard({ profile }: { profile: ProfileForm }) {
     setBusy(kind)
     try {
       const blob = await renderImage(kind, rows, content || text)
+      try {
+        localStorage.setItem('rocketid-qr-saved', '1')
+      } catch {
+        /* ignorar */
+      }
       const name = kind === 'wallpaper' ? 'rocketid-fondo-emergencia.png' : 'rocketid-tarjeta-emergencia.png'
       const file = new File([blob], name, { type: 'image/png' })
       // En el teléfono: menú de compartir (Guardar imagen / Imprimir). En computador: descarga.

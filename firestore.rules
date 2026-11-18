@@ -39,7 +39,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'displayName', 'email', 'photoURL', 'createdAt', 'lastLoginAt', 'updatedAt',
           'fullName', 'docType', 'docNumber', 'birthDate', 'phone', 'contactEmail',
-          'rocketId', 'discoverable', 'exactOnly',
+          'rocketId', 'discoverable', 'exactOnly', 'onboardedAt',
           'bio' // legado del primer MVP
         ])
         && rocketIdOk(uid)
@@ -54,7 +54,8 @@ service cloud.firestore {
         && optStr(request.resource.data, 'phone', 20)
         && optStr(request.resource.data, 'contactEmail', 120)
         && (!('discoverable' in request.resource.data) || request.resource.data.discoverable is bool)
-        && (!('exactOnly' in request.resource.data) || request.resource.data.exactOnly is bool);
+        && (!('exactOnly' in request.resource.data) || request.resource.data.exactOnly is bool)
+        && (!('onboardedAt' in request.resource.data) || request.resource.data.onboardedAt is timestamp);
       allow delete: if false;
 
       // Notificaciones de la persona (no hay push: se ven en el menú del avatar).

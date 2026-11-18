@@ -40,6 +40,7 @@ export function HomePage() {
         <HomeSkeleton />
       ) : (
         <>
+          <FirstSteps setup={data.setup} />
           <StatsGrid stats={data.stats} />
           <Attention stats={data.stats} />
           <Recommendations courses={data.courseRecs} events={data.eventRecs} />
@@ -115,7 +116,9 @@ function ActiveEventCard({ row }: { row: MyEventRow }) {
         )}
       </div>
       {/* El botón de emergencia solo existe mientras el evento está ocurriendo (inicio → término) */}
-      <div className={`grid gap-2 bg-black/15 p-3 ${ongoing ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1'}`}>
+      <div
+        className={`grid gap-2 bg-black/15 p-3 ${ongoing ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-1"}`}
+      >
         {ongoing && (
           <button
             type="button"
@@ -128,13 +131,154 @@ function ActiveEventCard({ row }: { row: MyEventRow }) {
         <Link
           to={`/e/${e.id}`}
           className={`flex items-center justify-center rounded-2xl px-4 font-semibold active:opacity-80 ${
-            ongoing ? 'h-14 bg-white/15 text-base text-white ring-1 ring-white/30' : 'h-12 bg-white text-base text-primary-text'
+            ongoing
+              ? "h-14 bg-white/15 text-base text-white ring-1 ring-white/30"
+              : "h-12 bg-white text-base text-primary-text"
           }`}
         >
           Ver evento
         </Link>
       </div>
       {ongoing && <EmergencySheet event={e} open={sos} onClose={close} />}
+    </section>
+  );
+}
+
+// ---------- Primeros pasos ----------
+
+interface Setup {
+  profileDone: boolean;
+  skillsAnswered: boolean;
+  hasCordada: boolean;
+  hasEvent: boolean;
+}
+
+function FirstSteps({ setup }: { setup: Setup }) {
+  const { user } = useAuth();
+  const key = `rocketid-setup-dismissed:${user?.uid}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const qrSaved = (() => {
+    try {
+      return localStorage.getItem("rocketid-qr-saved") === "1";
+    } catch {
+      return false;
+    }
+  })();
+  const steps = [
+    {
+      done: setup.profileDone,
+      icon: "🩺",
+      title: "Completa tu ficha de emergencia",
+      to: "/mis-datos",
+    },
+    {
+      done: setup.skillsAnswered,
+      icon: "🎓",
+      title: "Registra tu formación",
+      to: "/mis-datos",
+    },
+    {
+      done: setup.hasCordada,
+      icon: "🪢",
+      title: "Suma a alguien a tu cordada",
+      to: "/cordada",
+    },
+    {
+      done: setup.hasEvent,
+      icon: "🏔️",
+      title: "Únete o crea una salida",
+      to: "/eventos",
+    },
+    {
+      done: qrSaved,
+      icon: "🆘",
+      title: "Guarda tu tarjeta de emergencia QR",
+      to: "/mis-datos",
+    },
+  ];
+  const doneCount = steps.filter((x) => x.done).length;
+  if (dismissed || doneCount === steps.length) return null;
+
+  const hide = () => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(key, "1");
+    } catch {
+      /* ignorar */
+    }
+  };
+
+  return (
+    <section
+      aria-labelledby="setup-title"
+      className="rounded-2xl border border-line bg-card p-4 shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="setup-title" className="text-base font-bold text-fg">
+            Primeros pasos
+          </h2>
+          <p className="text-sm text-muted">
+            {doneCount} de {steps.length} listos para tu próxima salida
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={hide}
+          className="-my-2 -mr-2 h-11 rounded-lg px-3 text-sm font-medium text-muted active:bg-line/60"
+        >
+          Ocultar
+        </button>
+      </div>
+      <span
+        className="mt-3 block h-2 overflow-hidden rounded-full bg-line"
+        role="progressbar"
+        aria-valuenow={doneCount}
+        aria-valuemin={0}
+        aria-valuemax={steps.length}
+        aria-label="Progreso de primeros pasos"
+      >
+        <span
+          className="block h-full rounded-full bg-primary transition-all"
+          style={{ width: `${(doneCount / steps.length) * 100}%` }}
+        />
+      </span>
+      <ul className="mt-3 divide-y divide-line">
+        {steps.map((x) => (
+          <li key={x.title}>
+            <Link
+              to={x.to}
+              className="flex min-h-12 items-center gap-3 py-2 active:opacity-60"
+            >
+              <span
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${x.done ? "bg-emerald-600 text-white" : "bg-surface text-base ring-1 ring-field"}`}
+                aria-hidden="true"
+              >
+                {x.done ? "✓" : x.icon}
+              </span>
+              <span
+                className={`flex-1 text-base ${x.done ? "text-muted line-through" : "font-medium text-fg"}`}
+              >
+                {x.title}
+                <span className="sr-only">
+                  {x.done ? " (listo)" : " (pendiente)"}
+                </span>
+              </span>
+              {!x.done && (
+                <span className="text-lg text-muted" aria-hidden="true">
+                  ›
+                </span>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
