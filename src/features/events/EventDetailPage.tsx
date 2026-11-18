@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useParams } from 'react-router'
 import { Avatar } from '../../components/Avatar'
 import { BottomSheet } from '../../components/Sheet'
 import { HoldButton } from '../../components/HoldButton'
@@ -71,10 +71,16 @@ export function EventDetailPage() {
   const [profiles, setProfiles] = useState<Record<string, SearchResult>>({})
   const [sheet, setSheet] = useState<null | 'consent' | 'invite' | 'cancel' | 'edit' | 'options' | 'offline'>(null)
   const [openP, setOpenP] = useState<Participant | null>(null)
+  // Llegada desde "Emergencia → Ver ficha de un participante": abre esa ficha directamente
+  const location = useLocation()
+  const [pendingFicha, setPendingFicha] = useState<string | null>(() => (location.state as { ficha?: string } | null)?.ficha ?? null)
   const [busy, setBusy] = useState(false)
   const [editSession, setEditSession] = useState(0)
   const closeSheet = useCallback(() => setSheet(null), [])
-  const closeP = useCallback(() => setOpenP(null), [])
+  const closeP = useCallback(() => {
+    setOpenP(null)
+    setPendingFicha(null)
+  }, [])
 
   useEffect(() => subscribeEvent(eventId, setEvent), [eventId])
   // Solo participantes y organizador pueden leer la lista (si no, queda en null)
@@ -396,7 +402,8 @@ export function EventDetailPage() {
         <p className="text-base text-fg">¿Cancelar “{event.title}”? Los participantes verán el evento como cancelado.</p>
       </BottomSheet>
       <ParticipantSheet
-        participant={openP}
+        participant={openP ?? (pendingFicha ? (participants?.find((p) => p.uid === pendingFicha) ?? null) : null)}
+        autoStep={!openP && !!pendingFicha}
         event={event}
         isOrganizer={isOrganizer}
         isLead={isLead}
@@ -604,11 +611,13 @@ interface ParticipantSheetProps {
   /** Organizador o co-organizador confirmado */
   isLead: boolean
   iAmConfirmed: boolean
+  /** Abrir directo en el paso de ver ficha (o de acceso de emergencia) */
+  autoStep?: boolean
   onClose: () => void
   onToast: (msg: string) => void
 }
 
-function ParticipantSheet({ participant, event, isOrganizer, isLead, iAmConfirmed, onClose, onToast }: ParticipantSheetProps) {
+function ParticipantSheet({ participant, event, isOrganizer, isLead, iAmConfirmed, autoStep, onClose, onToast }: ParticipantSheetProps) {
   const me = useMe()
   const online = useOnline()
   const [shown, setShown] = useState(participant)
@@ -619,10 +628,24 @@ function ParticipantSheet({ participant, event, isOrganizer, isLead, iAmConfirme
   const [data, setData] = useState<SensitiveData | null | undefined>(undefined)
   const [loading, setLoading] = useState(false)
 
+  const confirmedP = (p: Participant) => p.role === 'participant' && p.status === 'confirmed'
+  const leadCanView = (p: Participant) => isLead && confirmedP(p) && sensitiveWindowOpen(event) && event.status === 'published'
+  const canEmergencyFor = (p: Participant) =>
+    !isLead && iAmConfirmed && confirmedP(p) && p.uid !== me?.uid && emergencyWindowOpen(event) && online
+
   if (participant && participant !== shown) {
     setShown(participant)
     setProfile(undefined)
-    setStep('profile')
+    const hasLocal = !!me && !!getOfflineEvent(event.id, me.uid)?.fichas[participant.uid]
+    setStep(
+      autoStep
+        ? leadCanView(participant) && (online || hasLocal)
+          ? 'warn'
+          : canEmergencyFor(participant)
+            ? 'emergency'
+            : 'profile'
+        : 'profile',
+    )
     setData(undefined)
     setFromDevice(false)
     setViaEmergency(false)

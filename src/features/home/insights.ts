@@ -225,3 +225,22 @@ const ACTIVITY_LABELS: Record<string, string> = {
   otro: 'salidas',
 }
 const activityLabel = (a: string) => ACTIVITY_LABELS[a] ?? 'salidas'
+
+// ---------- Evento en curso ----------
+
+/** Ventana en que el Inicio muestra la tarjeta del evento: 2 h antes del inicio hasta 2 h después del término */
+export const ACTIVE_BEFORE_MS = 2 * 3_600_000
+export const ACTIVE_AFTER_MS = 2 * 3_600_000
+
+/** Evento en curso (o por empezar) donde la persona organiza o está confirmada. Prioriza el que está en curso. */
+export function pickActiveEvent(rows: MyEventRow[], now = Date.now()): MyEventRow | null {
+  const live = rows.filter(
+    (r) =>
+      r.event.status === 'published' &&
+      (r.me.role === 'organizer' || r.me.status === 'confirmed') &&
+      now >= r.event.startAt.getTime() - ACTIVE_BEFORE_MS &&
+      now <= r.event.endAt.getTime() + ACTIVE_AFTER_MS,
+  )
+  const ongoing = (r: MyEventRow) => now >= r.event.startAt.getTime() && now <= r.event.endAt.getTime()
+  return live.sort((a, b) => Number(ongoing(b)) - Number(ongoing(a)) || a.event.startAt.getTime() - b.event.startAt.getTime())[0] ?? null
+}

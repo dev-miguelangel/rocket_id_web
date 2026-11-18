@@ -11,7 +11,7 @@ import { subscribeProfile } from '../profile/profileApi'
 import type { ProfileForm } from '../profile/schema'
 import type { SkillsData, Verifications } from '../skills/schema'
 import { subscribeSkills, subscribeVerifications } from '../skills/skillsApi'
-import { computeStats, recommendCourses, recommendEvents, type MyEventRow } from './insights'
+import { computeStats, pickActiveEvent, recommendCourses, recommendEvents, type MyEventRow } from './insights'
 
 /** Máximo de perfiles de la cordada que se consultan para las recomendaciones */
 const CORDADA_SAMPLE = 25
@@ -89,6 +89,7 @@ export function useHomeData() {
       }),
       courseRecs: recommendCourses(MOCK_COURSES, ctx),
       eventRecs: recommendEvents(publicEvents, { ...ctx, myUid: user.uid }),
+      activeEvent: pickActiveEvent(myEvents ?? []),
     }
   }, [loading, user, profile, skills, verifications, myEvents, cordadaInUse, contacts, apps, publicEvents])
 }
