@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { RocketIdBadge } from '../../components/RocketIdBadge'
+import { BottomSheet } from '../../components/Sheet'
+import { PrivacySettings } from '../contacts/PrivacySettings'
+import { ShareProfile } from '../contacts/ShareProfile'
 import { toTitleCaseName } from '../../lib/names'
 import { useRocketId } from '../auth/useRocketId'
 import { useTheme, type ThemePreference } from '../../lib/theme'
@@ -72,7 +75,13 @@ function UserMenu() {
   const rocketId = useRocketId()
   const { user, signOut } = useAuth()
   const [open, setOpen] = useState(false)
+  const [sheet, setSheet] = useState<'share' | 'privacy' | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const closeSheet = useCallback(() => setSheet(null), [])
+  const openSheet = (s: 'share' | 'privacy') => {
+    setOpen(false)
+    setSheet(s)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -105,6 +114,10 @@ function UserMenu() {
             <p className="truncate text-sm text-muted">{user?.email}</p>
             <RocketIdBadge rocketId={rocketId} className="mt-2" />
           </div>
+          <div className="border-t border-line py-1">
+            <MenuItem icon={<ShareMenuIcon />} label="Compartir mi perfil" onClick={() => openSheet('share')} />
+            <MenuItem icon={<LockIcon />} label="Privacidad" onClick={() => openSheet('privacy')} />
+          </div>
           <ThemeSwitcher />
           <button
             type="button"
@@ -115,7 +128,41 @@ function UserMenu() {
           </button>
         </div>
       )}
+
+      <BottomSheet open={sheet === 'share'} title="Compartir mi perfil" onClose={closeSheet}>
+        <ShareProfile heading={false} />
+      </BottomSheet>
+      <BottomSheet open={sheet === 'privacy'} title="Privacidad" onClose={closeSheet}>
+        <PrivacySettings />
+      </BottomSheet>
     </div>
+  )
+}
+
+function MenuItem({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-fg active:bg-line/60">
+      <span className="text-muted">{icon}</span>
+      <span className="flex-1">{label}</span>
+      <span className="text-muted" aria-hidden="true">›</span>
+    </button>
+  )
+}
+
+function ShareMenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+    </svg>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
   )
 }
 

@@ -11,7 +11,7 @@ export function shareText(rocketId: string, name?: string | null) {
 }
 
 /** Tarjeta "Comparte tu perfil": WhatsApp, menú nativo de compartir y copiar enlace. */
-export function ShareProfile() {
+export function ShareProfile({ heading = true }: { heading?: boolean }) {
   const { user } = useAuth()
   const rocketId = useRocketId()
   const [copied, setCopied] = useState(false)
@@ -46,7 +46,7 @@ export function ShareProfile() {
 
   return (
     <section>
-      <h2 className="mb-1.5 px-4 text-xs font-semibold tracking-wide text-muted uppercase">Comparte tu perfil</h2>
+      {heading && <h2 className="mb-1.5 px-4 text-xs font-semibold tracking-wide text-muted uppercase">Comparte tu perfil</h2>}
       <div className="rounded-2xl border border-line bg-card p-4">
         <p className="text-sm text-fg-soft">Envía tu enlace para que te agreguen a su cordada.</p>
         <p className="mt-2 truncate rounded-lg bg-surface px-3 py-2 font-mono text-xs text-muted">{url}</p>

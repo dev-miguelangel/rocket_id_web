@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 const DURATION = 280
 
@@ -80,7 +81,8 @@ export function BottomSheet({ open, title, onClose, left, right, footer, onSubmi
     </>
   )
 
-  return (
+  // Portal a <body>: un ancestro con backdrop-filter/transform encerraría el position: fixed
+  return createPortal(
     <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div
         className={`absolute inset-0 bg-black/40 transition-opacity duration-300 motion-reduce:transition-none ${visible ? 'opacity-100' : 'opacity-0'}`}
@@ -93,7 +95,8 @@ export function BottomSheet({ open, title, onClose, left, right, footer, onSubmi
       ) : (
         <div className={panelClass}>{inner}</div>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }
 
