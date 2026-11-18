@@ -1,5 +1,6 @@
 import { doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { normalizePhone } from '../../lib/phone'
 import { EMERGENCY_KEYS, IDENTITY_KEYS, emptyProfile, normalizeInsurance, type ProfileForm } from './schema'
 
 const identityRef = (uid: string) => doc(db, 'users', uid)
@@ -26,6 +27,9 @@ export function subscribeProfile(
       if (typeof v === 'string') merged[k] = v
     }
     merged.insuranceSystem = normalizeInsurance(merged.insuranceSystem)
+    // Teléfonos antiguos sin código de país ("912345678") → "+56 9 1234 5678"
+    merged.phone = normalizePhone(merged.phone)
+    merged.emergencyPhone = normalizePhone(merged.emergencyPhone)
     onLoad(merged, {
       email: typeof identity.email === 'string' ? identity.email : '',
       name: typeof identity.displayName === 'string' ? identity.displayName : '',

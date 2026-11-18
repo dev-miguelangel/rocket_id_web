@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Sheet } from '../../components/Sheet'
 import { toTitleCaseName } from '../../lib/names'
+import { normalizePhone } from '../../lib/phone'
 import { useAuth } from '../auth/AuthProvider'
 import { saveProfile, subscribeProfile } from '../profile/profileApi'
 import { CRITICAL_FIELDS, emptyProfile, formatRut, validate, type ProfileErrors, type ProfileForm } from '../profile/schema'
@@ -113,6 +114,8 @@ export function MyDataPage() {
       ...draft,
       fullName: toTitleCaseName(draft.fullName),
       emergencyName: toTitleCaseName(draft.emergencyName),
+      phone: normalizePhone(draft.phone),
+      emergencyPhone: normalizePhone(draft.emergencyPhone),
       docNumber: draft.docType === 'rut' && draft.docNumber ? formatRut(draft.docNumber) : draft.docNumber,
     }
     const all = validate(next)

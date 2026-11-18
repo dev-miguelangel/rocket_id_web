@@ -1,3 +1,4 @@
+import { phoneError, phoneErrorMessage } from '../../lib/phone'
 /** Modelo y validaciones de la ficha personal. Todos los valores se guardan como string. */
 
 export const DOC_TYPES = [
@@ -141,10 +142,7 @@ export function formatRut(v: string) {
 
 // ---------- Otros formatos ----------
 
-export function isValidPhone(v: string) {
-  const digits = v.replace(/[^\d]/g, '')
-  return digits.length >= 8 && digits.length <= 15 && /^\+?[\d\s()-]+$/.test(v.trim())
-}
+export const isValidPhone = (v: string) => phoneError(v) === null
 
 export function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
@@ -180,9 +178,9 @@ export function validate(f: ProfileForm): ProfileErrors {
     const age = ageFrom(f.birthDate)
     if (age === null || age < 0 || age > 110) e.birthDate = 'Fecha no válida.'
   }
-  if (f.phone && !isValidPhone(f.phone)) e.phone = 'Número no válido. Ej: +56 9 1234 5678'
+  if (f.phone && !isValidPhone(f.phone)) e.phone = phoneErrorMessage(f.phone)
   if (f.contactEmail && !isValidEmail(f.contactEmail)) e.contactEmail = 'Correo no válido.'
-  if (f.emergencyPhone && !isValidPhone(f.emergencyPhone)) e.emergencyPhone = 'Número no válido.'
+  if (f.emergencyPhone && !isValidPhone(f.emergencyPhone)) e.emergencyPhone = phoneErrorMessage(f.emergencyPhone)
   else if (f.emergencyPhone && f.phone && samePhone(f.phone, f.emergencyPhone))
     e.emergencyPhone = 'Debe ser el teléfono de otra persona, no el tuyo.'
   return e

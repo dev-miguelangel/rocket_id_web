@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { isContactPickerSupported, pickContact } from '../../lib/contactPicker'
 import { toTitleCaseName } from '../../lib/names'
+import { normalizePhone } from '../../lib/phone'
+import { PhoneInput } from '../../components/PhoneInput'
 import { Field, dateInputClass, inputClass, textareaClass } from '../../components/form'
 import {
   BLOOD_TYPES,
@@ -190,10 +192,7 @@ export function IdentityForm({ form, errors, set }: FormProps) {
         )}
       </Field>
       <Field label="Celular (con WhatsApp)" error={errors.phone}>
-        {(a) => (
-          <input {...a} type="tel" inputMode="tel" autoComplete="tel" className={inputClass} value={form.phone}
-            maxLength={20} placeholder="+56 9 1234 5678" onChange={(e) => set('phone', e.target.value)} />
-        )}
+        {(a) => <PhoneInput {...a} value={form.phone} autoComplete="tel" onChange={(v) => set('phone', v)} />}
       </Field>
       <Field label="Correo electrónico" error={errors.contactEmail} hint="Para rutas (GPX), listas de equipo y descargos.">
         {(a) => (
@@ -217,7 +216,7 @@ export function ContactForm({ form, errors, set }: FormProps) {
       const c = await pickContact()
       if (!c) return
       if (c.name) set('emergencyName', toTitleCaseName(c.name).slice(0, MAX_LEN.short))
-      if (c.phones.length === 1) set('emergencyPhone', c.phones[0].slice(0, 20))
+      if (c.phones.length === 1) set('emergencyPhone', normalizePhone(c.phones[0]))
       else if (c.phones.length > 1) setPhoneOptions(c.phones)
       else setPickError('Ese contacto no tiene teléfono. Ingrésalo a mano.')
     } catch {
@@ -249,7 +248,7 @@ export function ContactForm({ form, errors, set }: FormProps) {
               key={p}
               type="button"
               onClick={() => {
-                set('emergencyPhone', p.slice(0, 20))
+                set('emergencyPhone', normalizePhone(p))
                 setPhoneOptions([])
               }}
               className="h-11 rounded-full border border-line-strong bg-card px-4 text-sm font-medium text-fg active:bg-line"
@@ -275,10 +274,7 @@ export function ContactForm({ form, errors, set }: FormProps) {
         )}
       </Field>
       <Field label="Teléfono" error={errors.emergencyPhone}>
-        {(a) => (
-          <input {...a} type="tel" inputMode="tel" autoComplete="off" className={inputClass} value={form.emergencyPhone}
-            maxLength={20} placeholder="+56 9 1234 5678" onChange={(e) => set('emergencyPhone', e.target.value)} />
-        )}
+        {(a) => <PhoneInput {...a} value={form.emergencyPhone} autoComplete="off" onChange={(v) => set('emergencyPhone', v)} />}
       </Field>
     </Group>
     </>
