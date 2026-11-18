@@ -12,7 +12,8 @@ import { DashboardLayout } from './features/dashboard/DashboardLayout'
 import { ContactsPage } from './features/contacts/ContactsPage'
 import { ProfileLinkPage } from './features/contacts/ProfileLinkPage'
 import { CoursesPage } from './features/courses/CoursesPage'
-import { EventsPage } from './features/dashboard/EventsPage'
+import { EventDetailPage } from './features/events/EventDetailPage'
+import { EventsPage } from './features/events/EventsPage'
 import { HomePage } from './features/dashboard/HomePage'
 import { MyDataPage } from './features/dashboard/MyDataPage'
 
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
           { path: 'cordada', element: <ContactsPage /> },
           { path: 'p/:rocketId', element: <ProfileLinkPage /> },
           { path: 'eventos', element: <EventsPage /> },
+          { path: 'e/:eventId', element: <EventDetailPage /> },
         ],
       },
     ],

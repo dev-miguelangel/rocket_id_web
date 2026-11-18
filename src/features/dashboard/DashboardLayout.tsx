@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router'
 import { RocketIdBadge } from '../../components/RocketIdBadge'
 import { BottomSheet } from '../../components/Sheet'
 import { PrivacySettings } from '../contacts/PrivacySettings'
+import { NotificationsBell } from '../notifications/NotificationsBell'
 import { ShareProfile } from '../contacts/ShareProfile'
 import { toTitleCaseName } from '../../lib/names'
 import { useRocketId } from '../auth/useRocketId'
@@ -17,6 +18,10 @@ const tabs = [
   { to: '/eventos', label: 'Eventos', icon: CalendarIcon, end: false },
 ] as const
 
+/** Rutas de detalle que pertenecen a una pestaña (ej. /e/:id → Eventos, /p/:id → Cordada) */
+const alsoActive = (to: string, pathname: string) =>
+  (to === '/eventos' && pathname.startsWith('/e/')) || (to === '/cordada' && pathname.startsWith('/p/'))
+
 export function DashboardLayout() {
   const { pathname } = useLocation()
   const title = tabs.find((t) => (t.end ? pathname === t.to : pathname.startsWith(t.to)))?.label
@@ -25,8 +30,11 @@ export function DashboardLayout() {
     <div className="flex min-h-dvh flex-col bg-surface">
       <header className="pt-safe sticky top-0 z-20 border-b border-line/70 bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/p/') ? 'Perfil' : 'rocketId')}</h1>
-          <UserMenu />
+          <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/p/') ? 'Perfil' : pathname.startsWith('/e/') ? 'Evento' : 'rocketId')}</h1>
+          <div className="flex items-center gap-1">
+            <NotificationsBell />
+            <UserMenu />
+          </div>
         </div>
       </header>
 
@@ -46,7 +54,7 @@ export function DashboardLayout() {
                 end={end}
                 className={({ isActive }) =>
                   `flex h-full flex-col items-center justify-center gap-1 text-xs font-medium transition ${
-                    isActive ? 'text-primary-text' : 'text-muted'
+                    isActive || alsoActive(to, pathname) ? 'text-primary-text' : 'text-muted'
                   }`
                 }
               >
@@ -54,7 +62,7 @@ export function DashboardLayout() {
                   <>
                     <span
                       className={`flex h-8 w-12 items-center justify-center rounded-full transition ${
-                        isActive ? 'bg-primary/10' : ''
+                        isActive || alsoActive(to, pathname) ? 'bg-primary/10' : ''
                       }`}
                     >
                       <Icon />

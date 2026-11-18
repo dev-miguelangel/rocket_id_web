@@ -57,6 +57,23 @@ service cloud.firestore {
         && (!('exactOnly' in request.resource.data) || request.resource.data.exactOnly is bool);
       allow delete: if false;
 
+      // Notificaciones de la persona. Solo las crean organizadores de eventos donde participa:
+      // invitaciones y avisos de que vieron su ficha de emergencia.
+      match /notifications/{nid} {
+        allow read, delete: if isOwner(uid);
+        allow update: if isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        allow create: if request.auth != null
+          && request.resource.data.keys().hasOnly(['type', 'eventId', 'eventTitle', 'actorUid', 'actorName', 'read', 'createdAt'])
+          && request.resource.data.type in ['event_invite', 'sensitive_view']
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.read == false
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.eventTitle is string && request.resource.data.eventTitle.size() <= 100
+          && request.resource.data.actorName is string && request.resource.data.actorName.size() <= 120
+          && get(eventPath(request.resource.data.eventId)).data.organizerUid == request.auth.uid
+          && existsAfter(/databases/$(database)/documents/events/$(request.resource.data.eventId)/participants/$(uid));
+      }
+
       // Mi cordada: lista privada de contactos. Solo se puede agregar a personas con perfil público.
       match /contacts/{cid} {
         allow read, delete: if isOwner(uid);
@@ -170,6 +187,126 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['uid'])
         && request.resource.data.uid == request.auth.uid;
       allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    // ---------- Eventos ----------
+    function eventPath(eid) {
+      return /databases/$(database)/documents/events/$(eid);
+    }
+    function participantPath(eid, uid) {
+      return /databases/$(database)/documents/events/$(eid)/participants/$(uid);
+    }
+    function isEventOrganizer(eid) {
+      return request.auth != null && get(eventPath(eid)).data.organizerUid == request.auth.uid;
+    }
+    function isEventParticipant(eid) {
+      return request.auth != null && exists(participantPath(eid, request.auth.uid));
+    }
+    function validEvent(d) {
+      return d.keys().hasOnly(['title', 'activity', 'description', 'startAt', 'endAt', 'location', 'meetingPoint',
+          'visibility', 'capacity', 'requirements', 'publicAck', 'status', 'organizerUid', 'organizerName',
+          'organizerRocketId', 'organizerPhoto', 'createdAt'])
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 100
+        && d.activity is string && d.activity.size() <= 20
+        && d.description is string && d.description.size() <= 2000
+        && d.location is string && d.location.size() <= 150
+        && d.meetingPoint is string && d.meetingPoint.size() <= 200
+        && d.startAt is timestamp && d.endAt is timestamp && d.endAt >= d.startAt
+        && d.visibility in ['private', 'public']
+        && d.capacity is int && d.capacity >= 0 && d.capacity <= 500
+        && d.requirements is list && d.requirements.size() <= 10
+        && d.status in ['published', 'cancelled']
+        // Público exige haber aceptado la alerta de responsabilidades
+        && (d.visibility == 'private' || (d.publicAck is map && d.publicAck.version is string));
+    }
+
+    // Cualquier participante puede leer sus propias filas en todos los eventos (para "Mis eventos")
+    match /{path=**}/participants/{pid} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    match /events/{eid} {
+      // get: cualquiera con el enlace (id no adivinable). list: solo públicos.
+      allow get: if request.auth != null;
+      allow list: if request.auth != null && resource.data.visibility == 'public' && request.query.limit <= 50;
+      allow create: if request.auth != null
+        && request.resource.data.organizerUid == request.auth.uid
+        && request.resource.data.status == 'published'
+        && request.resource.data.createdAt == request.time
+        && validEvent(request.resource.data)
+        && (request.resource.data.visibility == 'private' || request.resource.data.publicAck.acceptedAt == request.time)
+        && existsAfter(participantPath(eid, request.auth.uid));
+      allow update: if isEventOrganizer(eid)
+        && request.resource.data.organizerUid == resource.data.organizerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validEvent(request.resource.data);
+      allow delete: if false;
+
+      match /participants/{pid} {
+        allow read: if isEventOrganizer(eid) || isEventParticipant(eid);
+        allow create: if request.auth != null
+          && request.resource.data.uid == pid
+          && request.resource.data.keys().hasOnly(['uid', 'displayName', 'rocketId', 'photoURL', 'role', 'status',
+              'emergencyComplete', 'invitedBy', 'consent', 'updatedAt'])
+          && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 120
+          && request.resource.data.emergencyComplete is bool
+          && (
+            // 1) El organizador se agrega a sí mismo al crear el evento
+            (pid == request.auth.uid && request.resource.data.role == 'organizer'
+              && request.resource.data.status == 'confirmed'
+              && getAfter(eventPath(eid)).data.organizerUid == request.auth.uid)
+            // 2) El organizador invita a alguien con perfil público
+            || (pid != request.auth.uid && request.resource.data.role == 'participant'
+              && request.resource.data.status == 'invited'
+              && request.resource.data.invitedBy == request.auth.uid
+              && isEventOrganizer(eid)
+              && exists(/databases/$(database)/documents/publicProfiles/$(pid)))
+            // 3) Una persona se une (evento público o con enlace), con consentimiento
+            || (pid == request.auth.uid && request.resource.data.role == 'participant'
+              && request.resource.data.status == 'confirmed'
+              && request.resource.data.consent.acceptedAt == request.time
+              && get(eventPath(eid)).data.status == 'published')
+          );
+        // Solo la propia persona cambia su estado (confirmar con consentimiento / rechazar)
+        allow update: if request.auth != null && pid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'emergencyComplete', 'consent', 'updatedAt'])
+          && request.resource.data.status in ['confirmed', 'declined']
+          && resource.data.role == 'participant'
+          && (request.resource.data.status == 'declined' || request.resource.data.consent.acceptedAt == request.time);
+        // Salir (la propia persona) o quitar (el organizador); el organizador no se quita a sí mismo
+        allow delete: if request.auth != null && resource.data.role == 'participant'
+          && (pid == request.auth.uid || isEventOrganizer(eid));
+      }
+
+      // Copia de la ficha de emergencia que el participante comparte al confirmar.
+      // El organizador SOLO puede leerla si registró la visualización (con notificación) hace < 15 min
+      // y hasta 2 días después del fin del evento.
+      match /sensitive/{pid} {
+        allow create, update: if request.auth != null && pid == request.auth.uid
+          && getAfter(participantPath(eid, pid)).data.status == 'confirmed'
+          && request.resource.data.keys().hasOnly(['fullName', 'docType', 'docNumber', 'birthDate', 'phone',
+              'emergencyName', 'emergencyRelationship', 'emergencyPhone', 'insuranceSystem', 'insuranceDetail',
+              'bloodType', 'allergies', 'conditions', 'medications', 'updatedAt']);
+        allow delete: if request.auth != null && (pid == request.auth.uid || isEventOrganizer(eid));
+        allow read: if isEventOrganizer(eid)
+          && request.time < get(eventPath(eid)).data.endAt + duration.value(2, 'd')
+          && get(/databases/$(database)/documents/events/$(eid)/viewLog/$(pid)).data.viewerUid == request.auth.uid
+          && get(/databases/$(database)/documents/events/$(eid)/viewLog/$(pid)).data.lastViewedAt > request.time - duration.value(15, 'm');
+      }
+
+      // Registro de visualizaciones de fichas: exige crear la notificación al participante en el mismo lote
+      match /viewLog/{pid} {
+        allow read: if isEventOrganizer(eid) || (request.auth != null && pid == request.auth.uid);
+        allow create, update: if isEventOrganizer(eid)
+          && exists(participantPath(eid, pid))
+          && request.resource.data.keys().hasOnly(['viewerUid', 'lastViewedAt', 'notifId'])
+          && request.resource.data.viewerUid == request.auth.uid
+          && request.resource.data.lastViewedAt == request.time
+          && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.type == 'sensitive_view'
+          && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.eventId == eid
+          && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.actorUid == request.auth.uid;
+        allow delete: if false;
+      }
     }
 
     // Postulaciones a cursos: applications/{uid}_{courseId}
