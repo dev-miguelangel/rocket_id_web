@@ -12,6 +12,7 @@ import { DashboardLayout } from './features/dashboard/DashboardLayout'
 import { ContactsPage } from './features/contacts/ContactsPage'
 import { ProfileLinkPage } from './features/contacts/ProfileLinkPage'
 import { PublicProfilePage } from './features/contacts/PublicProfilePage'
+import { LandingPage } from './features/landing/LandingPage'
 import { CoursesPage } from './features/courses/CoursesPage'
 import { EventDetailPage } from './features/events/EventDetailPage'
 import { EventsPage } from './features/events/EventsPage'
@@ -21,6 +22,8 @@ import { MyDataPage } from './features/dashboard/MyDataPage'
 const router = createBrowserRouter([
   // Perfil público de deportista: se ve sin sesión, como página independiente
   { path: '/p/:rocketId', element: <PublicProfilePage /> },
+  // Landing para promocionar la app (también se ve en "/" sin sesión)
+  { path: '/conoce', element: <LandingPage /> },
   {
     element: <PublicOnlyRoute />,
     children: [{ path: '/login', element: <LoginPage /> }],

@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { SplashScreen } from '../../components/SplashScreen'
+import { LandingPage } from '../landing/LandingPage'
 import { useAuth } from './AuthProvider'
 
 // Ruta a la que volver tras iniciar sesión (ej. un enlace compartido /p/SU-1234).
@@ -11,12 +12,12 @@ export function ProtectedRoute() {
   const location = useLocation()
   if (user === undefined) return <SplashScreen />
   if (!user) {
-    if (location.pathname !== '/') {
-      try {
-        sessionStorage.setItem(RETURN_KEY, location.pathname + location.search)
-      } catch {
-        /* almacenamiento bloqueado */
-      }
+    // Quien llega a la raíz sin sesión ve la landing en vez de ir directo al login
+    if (location.pathname === '/') return <LandingPage />
+    try {
+      sessionStorage.setItem(RETURN_KEY, location.pathname + location.search)
+    } catch {
+      /* almacenamiento bloqueado */
     }
     return <Navigate to="/login" replace />
   }
