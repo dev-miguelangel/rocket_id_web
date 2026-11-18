@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, Suspense, lazy } from 'react'
 import { RocketIdBadge } from '../../components/RocketIdBadge'
-import { Sheet } from '../../components/Sheet'
+import { BottomSheet, Sheet } from '../../components/Sheet'
+const EmergencyCard = lazy(() => import('../profile/EmergencyCard').then((m) => ({ default: m.EmergencyCard })))
 import { useToast } from '../../components/Toast'
 import { useRocketId } from '../auth/useRocketId'
 import { toTitleCaseName } from '../../lib/names'
@@ -30,6 +31,8 @@ export function MyDataPage() {
   const [errors, setErrors] = useState<ProfileErrors>({})
   const [saving, setSaving] = useState(false)
   const toast = useToast()
+  const [cardOpen, setCardOpen] = useState(false)
+  const closeCard = useCallback(() => setCardOpen(false), [])
   const setToast = toast.show
   const [skillsExpand, setSkillsExpand] = useState<string | null>(null)
 
@@ -175,6 +178,23 @@ export function MyDataPage() {
         <RocketIdBadge rocketId={rocketId} />
       </div>
 
+      <button
+        type="button"
+        onClick={() => setCardOpen(true)}
+        className="flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-red-600/70 bg-card px-4 py-3 text-left active:bg-line/60"
+      >
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-red-100 text-2xl dark:bg-red-500/15" aria-hidden="true">
+          🆘
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-semibold text-fg">Tarjeta de emergencia QR</span>
+          <span className="block text-sm text-muted">Se lee sin internet ni app · fondo de pantalla o para imprimir</span>
+        </span>
+        <span className="text-lg text-muted" aria-hidden="true">
+          ›
+        </span>
+      </button>
+
       {missing.length > 0 ? (
         <button
           type="button"
@@ -210,6 +230,12 @@ export function MyDataPage() {
       />
 
       <p className="px-4 text-center text-xs text-subtle">🔒 Solo tú puedes ver estos datos.</p>
+
+      <BottomSheet open={cardOpen} title="Tarjeta de emergencia" onClose={closeCard}>
+        <Suspense fallback={<div className="h-80 animate-pulse rounded-2xl bg-line" aria-label="Cargando tarjeta" />}>
+          <EmergencyCard profile={profile} />
+        </Suspense>
+      </BottomSheet>
 
       <Sheet
         open={!!editing}

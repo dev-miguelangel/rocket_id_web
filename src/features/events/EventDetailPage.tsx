@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link, useParams } from 'react-router'
 import { Avatar } from '../../components/Avatar'
 import { BottomSheet } from '../../components/Sheet'
+import { HoldButton } from '../../components/HoldButton'
 import { SwipeRow } from '../../components/SwipeRow'
 import { useToast } from '../../components/Toast'
 import { VerifiedBadge } from '../../components/VerifiedBadge'
@@ -16,10 +17,12 @@ import {
   cancelEvent,
   confirmAttendance,
   declineAttendance,
+  emergencyAccess,
   invite,
   queueOfflineViewNotice,
   removeParticipant,
   saveFichasOffline,
+  setCoOrganizer,
   subscribeEvent,
   subscribeParticipants,
   viewSensitive,
@@ -29,7 +32,9 @@ import { EventFormSheet } from './EventFormSheet'
 import { Chip, ParticipantChip, VisibilityChip } from './parts'
 import {
   EVENT_CONSENT_TEXT,
+  MAX_CO_ORGANIZERS,
   activityOf,
+  emergencyWindowOpen,
   formatEventDate,
   isPast,
   sensitiveWindowOpen,
@@ -39,6 +44,7 @@ import {
 } from './schema'
 import { useMe } from './useMe'
 import { useOnline } from '../../lib/useOnline'
+import { toE164Digits } from '../../lib/phone'
 import { getOfflineEvent, removeOfflineEvent, removeOfflineFicha, saveOfflineFichas } from './offlineFichas'
 
 const primaryBtn =
@@ -76,6 +82,8 @@ export function EventDetailPage() {
 
   const isOrganizer = !!event && event.organizerUid === user?.uid
   const myRow = participants?.find((p) => p.uid === user?.uid)
+  // Equipo de seguridad: organizador o co-organizador confirmado (mismo criterio que las reglas)
+  const isLead = isOrganizer || (!!event && !!user && event.coOrganizers.includes(user.uid) && myRow?.status === 'confirmed')
   const confirmed = useMemo(() => participants?.filter((p) => p.status === 'confirmed') ?? [], [participants])
 
   // Perfiles públicos de los confirmados (para requisitos), solo para el organizador
@@ -242,7 +250,9 @@ export function EventDetailPage() {
         </Block>
       )}
 
-      {isOrganizer && !cancelled && sensitiveWindowOpen(event) && (
+      {participants && <SafetyTeam event={event} participants={participants} />}
+
+      {isLead && !cancelled && sensitiveWindowOpen(event) && (
         <OfflineStatus event={event} participants={participants ?? []} onOpen={() => setSheet('offline')} />
       )}
 
@@ -278,10 +288,16 @@ export function EventDetailPage() {
                         </span>
                         <span className="block font-mono text-xs tracking-wide whitespace-nowrap text-muted">{p.rocketId}</span>
                       </span>
-                      {isOrganizer && p.role === 'participant' && p.status === 'confirmed' && !p.emergencyComplete && (
+                      {isLead && p.role === 'participant' && p.status === 'confirmed' && !p.emergencyComplete && (
                         <span title="Ficha de emergencia incompleta" aria-label="Ficha de emergencia incompleta">⚠️</span>
                       )}
-                      {p.role === 'organizer' ? <Chip tone="success">Organiza</Chip> : <ParticipantChip status={p.status} />}
+                      {p.role === 'organizer' ? (
+                        <Chip tone="success">Organiza</Chip>
+                      ) : event.coOrganizers.includes(p.uid) && p.status === 'confirmed' ? (
+                        <Chip tone="success">🛡️ Seguridad</Chip>
+                      ) : (
+                        <ParticipantChip status={p.status} />
+                      )}
                     </button>
                   </SwipeRow>
                 </li>
@@ -379,8 +395,16 @@ export function EventDetailPage() {
       >
         <p className="text-base text-fg">¿Cancelar “{event.title}”? Los participantes verán el evento como cancelado.</p>
       </BottomSheet>
-      <ParticipantSheet participant={openP} event={event} isOrganizer={isOrganizer} onClose={closeP} />
-      {isOrganizer && (
+      <ParticipantSheet
+        participant={openP}
+        event={event}
+        isOrganizer={isOrganizer}
+        isLead={isLead}
+        iAmConfirmed={myRow?.status === 'confirmed'}
+        onClose={closeP}
+        onToast={toast.show}
+      />
+      {isLead && (
         <OfflineFichasSheet open={sheet === 'offline'} event={event} participants={participants ?? []} onClose={closeSheet} onDone={(m) => toast.show(m)} />
       )}
 
@@ -432,6 +456,12 @@ function Checklist({ event, participants, profiles }: { event: EventDoc; partici
     ...(event.requirements.length
       ? [{ ok: reqGaps.length === 0, text: reqGaps.length ? `Requisitos pendientes — ${reqGaps.join(' · ')}` : 'Todos cumplen los requisitos' }]
       : []),
+    {
+      ok: event.coOrganizers.some((uid) => confirmed.some((p) => p.uid === uid)),
+      text: event.coOrganizers.some((uid) => confirmed.some((p) => p.uid === uid))
+        ? 'Hay respaldo en el equipo de seguridad'
+        : 'Sin respaldo: suma a alguien al equipo de seguridad (toca a un confirmado)',
+    },
   ]
   const allOk = items.every((i) => i.ok)
   return (
@@ -567,13 +597,25 @@ function InviteSheet({
 
 // ---------- Participante: perfil + ficha de emergencia (organizador) ----------
 
-function ParticipantSheet({ participant, event, isOrganizer, onClose }: { participant: Participant | null; event: EventDoc; isOrganizer: boolean; onClose: () => void }) {
+interface ParticipantSheetProps {
+  participant: Participant | null
+  event: EventDoc
+  isOrganizer: boolean
+  /** Organizador o co-organizador confirmado */
+  isLead: boolean
+  iAmConfirmed: boolean
+  onClose: () => void
+  onToast: (msg: string) => void
+}
+
+function ParticipantSheet({ participant, event, isOrganizer, isLead, iAmConfirmed, onClose, onToast }: ParticipantSheetProps) {
   const me = useMe()
   const online = useOnline()
   const [shown, setShown] = useState(participant)
   const [profile, setProfile] = useState<SearchResult | null | undefined>(undefined)
   const [fromDevice, setFromDevice] = useState(false)
-  const [step, setStep] = useState<'profile' | 'warn' | 'data'>('profile')
+  const [step, setStep] = useState<'profile' | 'warn' | 'emergency' | 'data'>('profile')
+  const [viaEmergency, setViaEmergency] = useState(false)
   const [data, setData] = useState<SensitiveData | null | undefined>(undefined)
   const [loading, setLoading] = useState(false)
 
@@ -583,6 +625,7 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
     setStep('profile')
     setData(undefined)
     setFromDevice(false)
+    setViaEmergency(false)
   }
 
   useEffect(() => {
@@ -597,8 +640,39 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
   }, [participant])
 
   if (!shown) return null
-  const canView =
-    isOrganizer && shown.role === 'participant' && shown.status === 'confirmed' && sensitiveWindowOpen(event) && event.status === 'published'
+  const isConfirmedParticipant = shown.role === 'participant' && shown.status === 'confirmed'
+  const canView = isLead && isConfirmedParticipant && sensitiveWindowOpen(event) && event.status === 'published'
+  // Acceso de emergencia: confirmados que no son del equipo, solo durante la salida y con conexión
+  const canEmergency = !isLead && iAmConfirmed && isConfirmedParticipant && shown.uid !== me?.uid && emergencyWindowOpen(event) && online
+  const isCoOrg = event.coOrganizers.includes(shown.uid)
+  const canManageTeam = isOrganizer && isConfirmedParticipant && event.status === 'published' && (isCoOrg || event.coOrganizers.length < MAX_CO_ORGANIZERS)
+
+  const toggleTeam = async () => {
+    if (!me) return
+    try {
+      await setCoOrganizer(event, me, shown.uid, !isCoOrg)
+      onToast(isCoOrg ? `${firstName(shown.displayName)} salió del equipo de seguridad` : `${firstName(shown.displayName)} ahora es parte del equipo de seguridad`)
+      onClose()
+    } catch {
+      onToast('No se pudo actualizar el equipo de seguridad.')
+    }
+  }
+
+  const openEmergency = async () => {
+    if (!me) return
+    setLoading(true)
+    try {
+      setData(await emergencyAccess(event, me, shown.uid))
+      setViaEmergency(true)
+      setStep('data')
+    } catch (e) {
+      console.error('emergencyAccess', e)
+      setData(null)
+      setStep('data')
+    } finally {
+      setLoading(false)
+    }
+  }
   // Copia guardada en este teléfono (para emergencias sin señal)
   const local = me ? getOfflineEvent(event.id, me.uid)?.fichas[shown.uid] : undefined
   const offlineNoCopy = canView && !online && !local
@@ -627,15 +701,40 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
   }
 
   const footer =
-    canView && step === 'profile' ? (
+    step === 'profile' && (canView || canEmergency || canManageTeam) ? (
       <div className="space-y-2 pb-3">
+        {canEmergency && (
+          <button
+            type="button"
+            onClick={() => setStep('emergency')}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-red-600 text-base font-semibold text-red-700 active:bg-red-50 dark:text-red-400 dark:active:bg-red-500/10"
+          >
+            🆘 Acceso de emergencia
+          </button>
+        )}
+        {canManageTeam && (
+          <button type="button" onClick={toggleTeam} className={secondaryBtn}>
+            {isCoOrg ? 'Quitar del equipo de seguridad' : '🛡️ Sumar al equipo de seguridad'}
+          </button>
+        )}
         {offlineNoCopy && (
           <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
             Sin conexión y sin copia en este teléfono. Para la próxima, guarda las fichas antes de salir desde <strong>Opciones → Fichas sin conexión</strong>.
           </p>
         )}
-        <button type="button" onClick={() => setStep('warn')} disabled={offlineNoCopy} className={primaryBtn}>
-          🩺 Ver ficha de emergencia{!online && local ? ' (sin conexión)' : ''}
+        {canView && (
+          <button type="button" onClick={() => setStep('warn')} disabled={offlineNoCopy} className={primaryBtn}>
+            🩺 Ver ficha de emergencia{!online && local ? ' (sin conexión)' : ''}
+          </button>
+        )}
+      </div>
+    ) : step === 'emergency' ? (
+      <div className="space-y-2 pb-3">
+        <HoldButton onConfirm={openEmergency} disabled={loading}>
+          {loading ? 'Abriendo…' : 'Mantén presionado para abrir la ficha'}
+        </HoldButton>
+        <button type="button" onClick={() => setStep('profile')} className="h-11 w-full rounded-lg text-sm font-medium text-fg-soft active:bg-line/60">
+          No es una emergencia
         </button>
       </div>
     ) : step === 'warn' ? (
@@ -682,6 +781,33 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
         </div>
       )}
 
+      {step === 'emergency' && (
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 rounded-2xl border-2 border-red-300 bg-red-50 p-4 text-red-900 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+            <span className="text-2xl" aria-hidden="true">🆘</span>
+            <div>
+              <p className="text-lg font-bold">¿Es una emergencia?</p>
+              <p className="mt-1 text-base">
+                Úsalo solo si {firstName(shown.displayName)} necesita ayuda y el organizador y su equipo de seguridad no están disponibles.
+              </p>
+            </div>
+          </div>
+          <ul className="space-y-2 rounded-2xl border border-line bg-card p-4 text-base text-fg-soft">
+            <li>🔔 Se avisará a {firstName(shown.displayName)}, al organizador y al equipo de seguridad.</li>
+            <li>📝 El acceso queda registrado a tu nombre.</li>
+            <li>📞 Si hay riesgo vital, llama primero al <strong>131 (SAMU)</strong>.</li>
+          </ul>
+          <a href="tel:131" className="flex h-12 items-center justify-center gap-2 rounded-xl border border-field bg-card font-semibold text-fg active:bg-line/60">
+            📞 Llamar al 131 (SAMU)
+          </a>
+        </div>
+      )}
+
+      {step === 'data' && viaEmergency && (
+        <p className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800 dark:bg-red-500/10 dark:text-red-200">
+          🆘 Acceso de emergencia registrado. Avisamos a {firstName(shown.displayName)}, al organizador y al equipo de seguridad.
+        </p>
+      )}
       {step === 'data' && fromDevice && local && (
         <p className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-500/10 dark:text-sky-200">
           📥 Copia guardada en este teléfono el {new Date(local.savedAt).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. Puede no incluir cambios posteriores.
@@ -716,9 +842,23 @@ function SensitiveView({ data: d }: { data: SensitiveData }) {
     <div className="space-y-4">
       <Group title="🆘 Contacto de emergencia" items={emergency} />
       {d.emergencyPhone && (
-        <a href={`tel:${d.emergencyPhone.replace(/\s/g, '')}`} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-red-600 font-semibold text-white active:bg-red-700">
-          📞 Llamar al contacto de emergencia
-        </a>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <a
+            href={`tel:+${toE164Digits(d.emergencyPhone)}`}
+            className="flex h-12 items-center justify-center gap-2 rounded-xl bg-red-600 px-3 font-semibold text-white active:bg-red-700"
+          >
+            📞 Llamar
+          </a>
+          <a
+            href={`https://wa.me/${toE164Digits(d.emergencyPhone)}?text=${encodeURIComponent(whatsappText(d))}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 font-semibold text-white active:opacity-80"
+          >
+            <WhatsAppGlyph />
+            WhatsApp
+          </a>
+        </div>
       )}
       <Group title="⛑️ Salud" items={health} />
       <Group title="🪪 Identificación" items={rows} />
@@ -726,6 +866,18 @@ function SensitiveView({ data: d }: { data: SensitiveData }) {
         <VerifiedBadge className="size-3.5" label="Acceso registrado" /> Esta visualización quedó registrada y fue notificada.
       </p>
     </div>
+  )
+}
+
+/** Mensaje inicial para el contacto de emergencia (se puede editar antes de enviar) */
+const whatsappText = (d: SensitiveData) =>
+  `Hola${d.emergencyName ? ` ${d.emergencyName.split(' ')[0]}` : ''}, te escribo desde rocketId porque eres el contacto de emergencia de ${d.fullName || 'un participante'} en una salida.`
+
+function WhatsAppGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden="true">
+      <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.3-.4.8-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3c-.2.3-.9.9-.9 2.2s1 2.6 1.1 2.7c.1.2 1.9 2.9 4.6 4.1 1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.1-1.2l-.4-.2z" />
+    </svg>
   )
 }
 
@@ -911,5 +1063,37 @@ function OfflineFichasSheet({
         </p>
       )}
     </BottomSheet>
+  )
+}
+
+// ---------- Equipo de seguridad (visible para el grupo) ----------
+
+function SafetyTeam({ event, participants }: { event: EventDoc; participants: Participant[] }) {
+  const organizer = participants.find((p) => p.role === 'organizer')
+  const team = participants.filter((p) => event.coOrganizers.includes(p.uid) && p.status === 'confirmed')
+  if (!organizer) return null
+  return (
+    <section className="rounded-2xl border border-line bg-card p-4">
+      <p className="flex items-center gap-2 text-base font-semibold text-fg">
+        <span aria-hidden="true">🛡️</span> Equipo de seguridad
+      </p>
+      <p className="mt-1 text-sm text-muted">Pueden ver las fichas de emergencia del grupo si hace falta.</p>
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {[organizer, ...team].map((p) => (
+          <li key={p.uid} className="flex h-10 items-center gap-2 rounded-full bg-surface pr-3 pl-1 ring-1 ring-line">
+            <Avatar name={p.displayName} photoURL={p.photoURL} className="size-8 text-xs" />
+            <span className="text-sm font-medium text-fg">
+              {firstName(p.displayName)}
+              {p.role === 'organizer' && <span className="text-muted"> · organiza</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {team.length === 0 && (
+        <p className="mt-3 text-sm text-muted">
+          Sin respaldo designado. Si el organizador no está disponible, cualquier confirmado puede usar el acceso de emergencia durante la salida.
+        </p>
+      )}
+    </section>
   )
 }

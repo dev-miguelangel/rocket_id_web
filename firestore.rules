@@ -73,12 +73,29 @@ service cloud.firestore {
           && request.resource.data.actorName is string && request.resource.data.actorName.size() <= 120
           && (!('detail' in request.resource.data) || (request.resource.data.detail is string && request.resource.data.detail.size() <= 160))
           && (
-            (request.resource.data.type in ['event_invite', 'sensitive_view', 'sensitive_saved', 'event_updated', 'event_cancelled']
+            // Organizador → participante
+            (request.resource.data.type in ['event_invite', 'event_updated', 'event_cancelled', 'co_organizer_added']
               && get(eventPath(request.resource.data.eventId)).data.organizerUid == request.auth.uid
               && existsAfter(participantPath(request.resource.data.eventId, uid)))
+            // Equipo de seguridad → participante: vio / guardó su ficha
+            || (request.resource.data.type in ['sensitive_view', 'sensitive_saved']
+              && isEventLead(request.resource.data.eventId)
+              && existsAfter(participantPath(request.resource.data.eventId, uid)))
+            // Participante → organizador
             || (request.resource.data.type in ['participant_confirmed', 'participant_joined', 'participant_declined']
               && get(eventPath(request.resource.data.eventId)).data.organizerUid == uid
               && existsAfter(participantPath(request.resource.data.eventId, request.auth.uid)))
+            // Acceso de emergencia: aviso a la persona cuya ficha se abre…
+            || (request.resource.data.type == 'emergency_access'
+              && isConfirmedParticipant(request.resource.data.eventId)
+              && inEmergencyWindow(request.resource.data.eventId)
+              && exists(participantPath(request.resource.data.eventId, uid)))
+            // …y alerta al organizador y al equipo de seguridad
+            || (request.resource.data.type == 'emergency_alert'
+              && isConfirmedParticipant(request.resource.data.eventId)
+              && inEmergencyWindow(request.resource.data.eventId)
+              && (get(eventPath(request.resource.data.eventId)).data.organizerUid == uid
+                || uid in get(eventPath(request.resource.data.eventId)).data.get('coOrganizers', [])))
           );
       }
 
@@ -210,10 +227,28 @@ service cloud.firestore {
     function isEventParticipant(eid) {
       return request.auth != null && exists(participantPath(eid, request.auth.uid));
     }
+    function isConfirmedParticipant(eid) {
+      return request.auth != null
+        && exists(participantPath(eid, request.auth.uid))
+        && get(participantPath(eid, request.auth.uid)).data.status == 'confirmed';
+    }
+    // Equipo de seguridad: organizador, o co-organizador designado que sigue confirmado
+    function isEventLead(eid) {
+      return request.auth != null && (
+        get(eventPath(eid)).data.organizerUid == request.auth.uid
+        || (request.auth.uid in get(eventPath(eid)).data.get('coOrganizers', [])
+            && isConfirmedParticipant(eid)));
+    }
+    // Acceso de emergencia: solo desde 2 h antes del inicio hasta 12 h después del término
+    function inEmergencyWindow(eid) {
+      return get(eventPath(eid)).data.status == 'published'
+        && request.time >= get(eventPath(eid)).data.startAt - duration.value(2, 'h')
+        && request.time <= get(eventPath(eid)).data.endAt + duration.value(12, 'h');
+    }
     function validEvent(d) {
       return d.keys().hasOnly(['title', 'activity', 'description', 'startAt', 'endAt', 'location', 'meetingPoint',
           'visibility', 'capacity', 'requirements', 'publicAck', 'status', 'organizerUid', 'organizerName',
-          'organizerRocketId', 'organizerPhoto', 'createdAt'])
+          'organizerRocketId', 'organizerPhoto', 'coOrganizers', 'createdAt'])
         && d.title is string && d.title.size() > 0 && d.title.size() <= 100
         && d.activity is string && d.activity.size() <= 20
         && d.description is string && d.description.size() <= 2000
@@ -224,6 +259,8 @@ service cloud.firestore {
         && d.capacity is int && d.capacity >= 0 && d.capacity <= 500
         && d.requirements is list && d.requirements.size() <= 10
         && d.status in ['published', 'cancelled']
+        // Equipo de seguridad: hasta 2 co-organizadores
+        && (!('coOrganizers' in d) || (d.coOrganizers is list && d.coOrganizers.size() <= 2 && !(d.organizerUid in d.coOrganizers)))
         // Público exige haber aceptado la alerta de responsabilidades
         && (d.visibility == 'private' || (d.publicAck is map && d.publicAck.version is string));
     }
@@ -294,8 +331,9 @@ service cloud.firestore {
       }
 
       // Copia de la ficha de emergencia que el participante comparte al confirmar.
-      // El organizador SOLO puede leerla si registró la visualización (con notificación) hace < 15 min
-      // y hasta 2 días después del fin del evento.
+      // Solo se lee tras registrar la visualización (con notificación) hace < 15 min y hasta 2 días después del evento:
+      //  · el equipo de seguridad (organizador + co-organizadores confirmados), o
+      //  · cualquier confirmado con "acceso de emergencia", solo dentro de la ventana del evento.
       match /sensitive/{pid} {
         allow create, update: if request.auth != null && pid == request.auth.uid
           && getAfter(participantPath(eid, pid)).data.status == 'confirmed'
@@ -303,24 +341,38 @@ service cloud.firestore {
               'emergencyName', 'emergencyRelationship', 'emergencyPhone', 'insuranceSystem', 'insuranceDetail',
               'bloodType', 'allergies', 'conditions', 'medications', 'updatedAt']);
         allow delete: if request.auth != null && (pid == request.auth.uid || isEventOrganizer(eid));
-        allow read: if isEventOrganizer(eid)
+        allow read: if request.auth != null
           && request.time < get(eventPath(eid)).data.endAt + duration.value(2, 'd')
           && get(/databases/$(database)/documents/events/$(eid)/viewLog/$(pid)).data.viewerUid == request.auth.uid
-          && get(/databases/$(database)/documents/events/$(eid)/viewLog/$(pid)).data.lastViewedAt > request.time - duration.value(15, 'm');
+          && get(/databases/$(database)/documents/events/$(eid)/viewLog/$(pid)).data.lastViewedAt > request.time - duration.value(15, 'm')
+          && (isEventLead(eid)
+            || (get(/databases/$(database)/documents/events/$(eid)/viewLog/$(pid)).data.get('emergency', false) == true
+              && isConfirmedParticipant(eid)
+              && inEmergencyWindow(eid)));
       }
 
       // Registro de visualizaciones de fichas: exige crear la notificación al participante en el mismo lote
       match /viewLog/{pid} {
-        allow read: if isEventOrganizer(eid) || (request.auth != null && pid == request.auth.uid);
-        allow create, update: if isEventOrganizer(eid)
+        allow read: if isEventLead(eid) || (request.auth != null && pid == request.auth.uid);
+        allow create, update: if request.auth != null
           && exists(participantPath(eid, pid))
-          && request.resource.data.keys().hasOnly(['viewerUid', 'lastViewedAt', 'notifId'])
+          && request.resource.data.keys().hasOnly(['viewerUid', 'lastViewedAt', 'notifId', 'emergency'])
           && request.resource.data.viewerUid == request.auth.uid
           && request.resource.data.lastViewedAt == request.time
-          // "vio tu ficha" o "guardó tu ficha para usarla sin señal"
-          && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.type in ['sensitive_view', 'sensitive_saved']
           && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.eventId == eid
-          && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.actorUid == request.auth.uid;
+          && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.actorUid == request.auth.uid
+          && (
+            // Equipo de seguridad: "vio tu ficha" o "guardó tu ficha para usarla sin señal"
+            (isEventLead(eid)
+              && request.resource.data.get('emergency', false) == false
+              && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.type in ['sensitive_view', 'sensitive_saved'])
+            // Acceso de emergencia de un confirmado (nunca sobre su propia ficha), dentro de la ventana
+            || (pid != request.auth.uid
+              && request.resource.data.emergency == true
+              && isConfirmedParticipant(eid)
+              && inEmergencyWindow(eid)
+              && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.type == 'emergency_access')
+          );
         allow delete: if false;
       }
     }

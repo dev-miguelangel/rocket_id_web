@@ -40,6 +40,8 @@ export interface EventDoc {
   organizerName: string
   organizerRocketId: string
   organizerPhoto: string | null
+  /** Equipo de seguridad: hasta 2 participantes con el mismo acceso a las fichas */
+  coOrganizers: string[]
 }
 
 export type ParticipantStatus = 'invited' | 'confirmed' | 'declined'
@@ -80,7 +82,9 @@ export const PUBLIC_RESPONSIBILITIES = [
 ]
 
 export const EVENT_CONSENT_TEXT =
-  'Al confirmar, compartes con el organizador tu ficha de emergencia: identificación, contacto de emergencia, previsión, grupo sanguíneo, alergias, condiciones médicas y medicamentos. Podrá verla hasta 2 días después del evento y recibirás una notificación cada vez que la vea.'
+  'Al confirmar, compartes tu ficha de emergencia (identificación, contacto de emergencia, previsión, grupo sanguíneo, alergias, condiciones médicas y medicamentos) con el organizador y su equipo de seguridad (hasta 2 personas). Podrán verla hasta 2 días después del evento. Si ninguno está disponible, otro participante confirmado podrá abrirla en una emergencia durante la salida. Recibirás una notificación cada vez que alguien la vea.'
+
+export const MAX_CO_ORGANIZERS = 2
 
 // ---------- Formato ----------
 
@@ -92,4 +96,8 @@ export function formatEventDate(start: Date, end: Date) {
 }
 
 export const isPast = (e: EventDoc) => e.endAt.getTime() < Date.now()
+
+/** Mismo criterio que las reglas: desde 2 h antes del inicio hasta 12 h después del término */
+export const emergencyWindowOpen = (e: EventDoc, now = Date.now()) =>
+  e.status === 'published' && now >= e.startAt.getTime() - 2 * 3_600_000 && now <= e.endAt.getTime() + 12 * 3_600_000
 export const sensitiveWindowOpen = (e: EventDoc) => Date.now() < e.endAt.getTime() + SENSITIVE_GRACE_DAYS * 86_400_000

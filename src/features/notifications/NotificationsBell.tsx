@@ -44,6 +44,24 @@ const T: Record<NotificationType, { icon: string; tone: string; text: (n: AppNot
     text: (n) => `${n.actorName} no podrá ir a “${n.eventTitle}”`,
     context: 'Invitación rechazada o canceló su asistencia · su ficha ya no está disponible',
   },
+  co_organizer_added: {
+    icon: '🛡️',
+    tone: 'bg-emerald-100 dark:bg-emerald-500/15',
+    text: (n) => `${n.actorName} te sumó al equipo de seguridad de “${n.eventTitle}”`,
+    context: 'Podrás ver y guardar sin conexión las fichas de emergencia del grupo si el organizador no está disponible',
+  },
+  emergency_access: {
+    icon: '🆘',
+    tone: 'bg-red-100 dark:bg-red-500/15',
+    text: (n) => `${n.actorName} abrió tu ficha con acceso de emergencia en “${n.eventTitle}”`,
+    context: 'Se usó porque el organizador o el equipo de seguridad no estaban disponibles',
+  },
+  emergency_alert: {
+    icon: '🚨',
+    tone: 'bg-red-100 dark:bg-red-500/15',
+    text: (n) => `${n.actorName} usó el acceso de emergencia en “${n.eventTitle}”`,
+    context: 'Alguien del grupo necesitó una ficha de emergencia. Revisa el evento',
+  },
   sensitive_saved: {
     icon: '📥',
     tone: 'bg-violet-100 dark:bg-violet-500/15',

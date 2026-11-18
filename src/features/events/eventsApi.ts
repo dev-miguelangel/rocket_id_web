@@ -56,6 +56,7 @@ function parseEvent(id: string, v: Record<string, unknown>): EventDoc {
     organizerName: str(v.organizerName),
     organizerRocketId: str(v.organizerRocketId),
     organizerPhoto: typeof v.organizerPhoto === 'string' ? v.organizerPhoto : null,
+    coOrganizers: Array.isArray(v.coOrganizers) ? (v.coOrganizers as unknown[]).filter((x): x is string => typeof x === 'string') : [],
   }
 }
 
@@ -83,6 +84,9 @@ export type NotificationType =
   | 'participant_joined'
   | 'participant_declined'
   | 'sensitive_saved'
+  | 'co_organizer_added'
+  | 'emergency_access'
+  | 'emergency_alert'
 
 type Actor = { uid: string; displayName: string }
 
@@ -461,4 +465,32 @@ export async function viewSensitive(event: EventDoc, actor: Me, pid: string): Pr
   const snap = await getDoc(sensitiveRef(event.id, pid))
   if (!snap.exists()) return null
   return toSensitive(snap.data())
+}
+
+// ---------- Respaldo si el organizador no está ----------
+
+/** El organizador agrega o quita a alguien del equipo de seguridad (y le avisa al agregarlo). */
+export async function setCoOrganizer(event: EventDoc, actor: Me, uid: string, add: boolean) {
+  const next = add ? [...new Set([...event.coOrganizers, uid])] : event.coOrganizers.filter((x) => x !== uid)
+  const batch = writeBatch(db)
+  batch.update(eventRef(event.id), { coOrganizers: next })
+  if (add) batch.set(newNotifRef(uid), notificationData('co_organizer_added', event, actor))
+  await batch.commit()
+}
+
+/**
+ * Acceso de emergencia: un participante confirmado abre la ficha de otro durante la salida.
+ * Avisa a la persona, al organizador y al equipo de seguridad en el mismo lote (las reglas lo exigen).
+ */
+export async function emergencyAccess(event: EventDoc, actor: Me, pid: string): Promise<SensitiveData | null> {
+  const n = newNotifRef(pid)
+  const batch = writeBatch(db)
+  batch.set(n, notificationData('emergency_access', event, actor))
+  batch.set(viewLogRef(event.id, pid), { viewerUid: actor.uid, lastViewedAt: serverTimestamp(), notifId: n.id, emergency: true })
+  for (const lead of [event.organizerUid, ...event.coOrganizers]) {
+    if (lead !== actor.uid) batch.set(newNotifRef(lead), notificationData('emergency_alert', event, actor))
+  }
+  await batch.commit()
+  const snap = await getDoc(sensitiveRef(event.id, pid))
+  return snap.exists() ? toSensitive(snap.data()) : null
 }

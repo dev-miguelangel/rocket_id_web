@@ -55,7 +55,7 @@ export const FEATURES = [
     eyebrow: 'Ficha de emergencia',
     title: 'La información que salva minutos',
     text: 'Contacto de emergencia con botón para llamar, grupo sanguíneo, alergias, condiciones médicas y dónde llevas tus medicamentos en la mochila.',
-    bullets: ['Funciona sin señal una vez abierta', 'Solo tú la ves hasta que confirmas una salida', 'Avisa qué datos te faltan'],
+    bullets: ['Tarjeta QR que se lee sin internet ni app', 'Solo tú la ves hasta que confirmas una salida', 'Avisa qué datos te faltan'],
   },
   {
     id: 'formacion',
@@ -76,7 +76,7 @@ export const FEATURES = [
     eyebrow: 'Eventos',
     title: 'Salidas organizadas, grupos preparados',
     text: 'Crea la salida, define requisitos e invita. Antes de partir, una revisión te dice quién confirmó, quién no tiene la ficha completa y quién no cumple los requisitos.',
-    bullets: ['Privados por enlace o públicos', 'Ficha del grupo para el organizador, con aviso al participante', 'Notificaciones de cambios y confirmaciones'],
+    bullets: ['Privados por enlace o públicos', 'Equipo de seguridad y fichas guardadas para usar sin señal', 'Acceso de emergencia si el organizador no está'],
   },
   {
     id: 'cursos',
@@ -175,8 +175,8 @@ export const STORIES = [
 
 export const PRIVACY = [
   { icon: '🔒', title: 'Tu ficha de salud es privada', text: 'Nadie la ve: ni otros usuarios ni tu cordada.' },
-  { icon: '✍️', title: 'Compartir es tu decisión', text: 'Solo se comparte al confirmar una salida, con tu consentimiento y únicamente con quien organiza.' },
-  { icon: '🔔', title: 'Siempre sabrás quién la vio', text: 'Te notificamos cada vez que el organizador abre tu ficha. El acceso vence dos días después del evento.' },
+  { icon: '✍️', title: 'Compartir es tu decisión', text: 'Solo se comparte al confirmar una salida, con tu consentimiento, con el organizador y su equipo de seguridad.' },
+  { icon: '🔔', title: 'Siempre sabrás quién la vio', text: 'Te notificamos cada vez que alguien abre tu ficha, incluso en un acceso de emergencia. El acceso vence dos días después del evento.' },
   { icon: '👁️', title: 'Perfil público mínimo', text: 'Nombre, foto, rocketId y formación. Nunca correo, documento, teléfono ni datos de salud.' },
   { icon: '✅', title: 'Verificaciones reales', text: 'Las insignias las otorgan las instituciones emisoras y no se pueden falsificar.' },
 ]
@@ -196,7 +196,11 @@ export const FAQ = [
   },
   {
     q: '¿Quién puede ver mis datos de salud?',
-    a: 'Solo tú. Cuando confirmas una salida, compartes una copia con quien la organiza, con tu consentimiento. Recibes una notificación cada vez que la abre, y el acceso vence dos días después del evento.',
+    a: 'Solo tú. Cuando confirmas una salida, compartes una copia con el organizador y su equipo de seguridad, con tu consentimiento. Si ninguno está disponible en una emergencia, otro participante confirmado puede abrirla durante la salida. Recibes una notificación cada vez que alguien la abre, y el acceso vence dos días después del evento.',
+  },
+  {
+    q: '¿Y si el organizador es quien tiene la emergencia?',
+    a: 'El organizador puede sumar hasta dos personas a su equipo de seguridad, que también pueden ver y guardar las fichas para usarlas sin señal. Si nadie del equipo está disponible, cualquier participante confirmado puede usar el acceso de emergencia durante la salida. Y tu tarjeta QR funciona aunque nadie tenga la app ni señal.',
   },
   {
     q: '¿Cómo se verifica una certificación?',
