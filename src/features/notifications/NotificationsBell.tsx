@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { BottomSheet } from '../../components/Sheet'
 import { SwipeRow } from '../../components/SwipeRow'
@@ -139,5 +139,28 @@ export function NotificationsSheet({ open, onClose, items }: { open: boolean; on
         </ul>
       )}
     </BottomSheet>
+  )
+}
+
+/** Campana de la barra superior: contador de no leídas y hoja con la lista */
+export function NotificationsButton() {
+  const { items, unread } = useNotifications()
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={unread ? `Notificaciones, ${unread} sin leer` : 'Notificaciones'}
+        className="relative flex size-11 items-center justify-center rounded-full text-fg active:bg-line/60"
+      >
+        <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0" />
+        </svg>
+        <UnreadBadge count={unread} className="absolute top-0.5 right-0.5" />
+      </button>
+      <NotificationsSheet open={open} onClose={close} items={items} />
+    </>
   )
 }

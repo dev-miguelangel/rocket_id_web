@@ -30,7 +30,7 @@ export function PublicProfileCard({ result, maxCerts = 3, action }: Props) {
               🧪 Perfil de prueba
             </span>
           )}
-          <p className="font-mono text-sm font-bold tracking-wider text-primary-text">🚀 {p.rocketId}</p>
+          <p className="font-mono text-sm font-bold tracking-wider whitespace-nowrap text-primary-text">🚀 {p.rocketId}</p>
           {certs.length > 0 && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
               {certs.length} {certs.length === 1 ? 'certificación' : 'certificaciones'}

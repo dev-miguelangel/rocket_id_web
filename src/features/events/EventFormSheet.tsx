@@ -1,4 +1,4 @@
-import { useCallback, useId, useState, type FormEvent } from 'react'
+import { useCallback, useId, useMemo, useState, type FormEvent } from 'react'
 import { Field, Segmented, dateInputClass, inputClass, textareaClass } from '../../components/form'
 import { BottomSheet, Sheet } from '../../components/Sheet'
 import { SKILL_CATEGORIES, categoryOf, type CategoryId } from '../skills/schema'
@@ -47,6 +47,10 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
   const [publicAck, setPublicAck] = useState(event?.visibility === 'public')
   const [ackOpen, setAckOpen] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
+  // ¿Cambió algo respecto de lo que había al abrir? (para confirmar antes de descartar)
+  const snapshot = JSON.stringify([activity, title, start, end, location, meetingPoint, description, capacity, requirements, visibility])
+  const [initial, setInitial] = useState(snapshot)
+  const dirty = useMemo(() => snapshot !== initial, [snapshot, initial])
   // Divulgación progresiva: lo opcional va plegado (abierto si al editar ya tiene datos)
   const [moreOpen, setMoreOpen] = useState(
     !!event && !!(event.meetingPoint || event.description || event.capacity || event.requirements.length),
@@ -74,6 +78,7 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
 
   const reset = () => {
     const n = defaults()
+    setInitial(JSON.stringify(['trekking', '', n.start, n.end, '', '', '', '', [], 'private']))
     setActivity('trekking')
     setTitle('')
     setStart(n.start)
@@ -120,6 +125,7 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
       if (event) {
         await updateEvent(event, input, me)
         navigator.vibrate?.(10)
+        setInitial(snapshot)
         onCreated(event.id)
       } else {
         const id = await createEvent(me, input)
@@ -135,6 +141,12 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
     }
   }
 
+  /** Cancelar/descartar: en "Nuevo evento" se limpia el borrador */
+  const cancel = () => {
+    if (!editing) reset()
+    onClose()
+  }
+
   const chooseVisibility = (v: Visibility) => {
     if (v === 'public' && !publicAck) setAckOpen(true)
     else setVisibility(v)
@@ -142,7 +154,7 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
 
   return (
     <>
-      <Sheet open={open} title={editing ? 'Editar evento' : 'Nuevo evento'} onCancel={onClose} onSubmit={submit} saving={saving} canSave={!!me}>
+      <Sheet open={open} title={editing ? 'Editar evento' : 'Nuevo evento'} onCancel={cancel} onSubmit={submit} saving={saving} canSave={!!me} dirty={dirty}>
         {!me && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">Cargando tu perfil…</p>}
 
         <div className="rounded-2xl border border-line bg-card p-4">

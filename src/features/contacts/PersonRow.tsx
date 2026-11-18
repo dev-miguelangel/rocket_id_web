@@ -24,9 +24,9 @@ export function PersonRow({ name, photoURL, rocketId, note, isMock, onClick }: P
             </span>
           )}
         </span>
-        <span className="block truncate text-sm text-muted">
-          <span className="font-mono tracking-wide">{rocketId}</span>
-          {note && <span> · {note}</span>}
+        <span className="flex min-w-0 items-baseline gap-1 text-sm text-muted">
+          <span className="shrink-0 font-mono tracking-wide whitespace-nowrap">{rocketId}</span>
+          {note && <span className="truncate">· {note}</span>}
         </span>
       </span>
     </button>

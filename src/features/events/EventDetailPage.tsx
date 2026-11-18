@@ -268,7 +268,7 @@ export function EventDetailPage() {
                         <span className="block truncate text-[15px] font-semibold text-fg">
                           {p.displayName} {p.uid === user?.uid && <span className="font-normal text-muted">(tú)</span>}
                         </span>
-                        <span className="block truncate font-mono text-xs tracking-wide text-muted">{p.rocketId}</span>
+                        <span className="block font-mono text-xs tracking-wide whitespace-nowrap text-muted">{p.rocketId}</span>
                       </span>
                       {isOrganizer && p.role === 'participant' && p.status === 'confirmed' && !p.emergencyComplete && (
                         <span title="Ficha de emergencia incompleta" aria-label="Ficha de emergencia incompleta">⚠️</span>
@@ -532,7 +532,7 @@ function InviteSheet({
               <Avatar name={c.displayName} photoURL={c.photoURL} className="size-11" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] font-semibold text-fg">{c.displayName}</span>
-                <span className="block font-mono text-xs text-muted">{c.rocketId}</span>
+                <span className="block font-mono text-xs whitespace-nowrap text-muted">{c.rocketId}</span>
               </span>
               {inEvent.has(c.uid) ? (
                 <span className="text-sm text-muted">Invitado</span>
@@ -626,7 +626,7 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
             <Avatar name={shown.displayName} photoURL={shown.photoURL} className="size-14" />
             <div>
               <p className="font-semibold text-fg">{shown.displayName}</p>
-              <p className="font-mono text-sm text-muted">{shown.rocketId}</p>
+              <p className="font-mono text-sm whitespace-nowrap text-muted">{shown.rocketId}</p>
             </div>
           </div>
         ))}

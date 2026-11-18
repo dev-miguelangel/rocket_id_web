@@ -262,7 +262,7 @@ function Consent({ provider, rocketId, profile: p, skills, missing, accepted, on
       )}
 
       <Preview title="🪪 Identificación">
-        <Row label="rocketId" value={rocketId ?? ''} />
+        <Row label="rocketId" value={rocketId ?? ''} nowrap />
         <Row label="Nombre" value={p.fullName} />
         <Row label={docLabel} value={p.docNumber} />
         <Row label="Fecha de nacimiento" value={p.birthDate ? new Date(`${p.birthDate}T00:00:00`).toLocaleDateString('es') : ''} />
@@ -319,11 +319,11 @@ function Preview({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, nowrap }: { label: string; value: string; nowrap?: boolean }) {
   return (
     <div className="px-4 py-2.5">
       <p className="text-xs text-muted">{label}</p>
-      <p className={`text-sm break-words ${value ? 'text-fg' : 'text-subtle italic'}`}>{value || 'Sin informar'}</p>
+      <p className={`text-sm ${nowrap ? 'font-mono whitespace-nowrap' : 'break-words'} ${value ? 'text-fg' : 'text-subtle italic'}`}>{value || 'Sin informar'}</p>
     </div>
   )
 }

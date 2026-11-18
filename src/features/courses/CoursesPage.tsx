@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router'
 import { Segmented } from '../../components/form'
 import { SwipeRow } from '../../components/SwipeRow'
 import { useAuth } from '../auth/AuthProvider'
@@ -18,7 +19,9 @@ export function CoursesPage() {
   const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('explore')
   const [filter, setFilter] = useState<CategoryId | 'all'>('all')
-  const [selected, setSelected] = useState<Course | null>(null)
+  const [params, setParams] = useSearchParams()
+  // Abre directamente un curso recomendado: /cursos?curso=ID
+  const [selected, setSelected] = useState<Course | null>(() => MOCK_COURSES.find((c) => c.id === params.get('curso')) ?? null)
   const [startStep, setStartStep] = useState<'detail' | 'consent'>('detail')
   const open = (c: Course, step: 'detail' | 'consent' = 'detail') => {
     setStartStep(step)
@@ -51,7 +54,10 @@ export function CoursesPage() {
     return [...filtered].sort((a, b) => a.startDate.localeCompare(b.startDate))
   }, [tab, filter, appByCourse])
 
-  const close = useCallback(() => setSelected(null), [])
+  const close = useCallback(() => {
+    setSelected(null)
+    if (params.has('curso')) setParams({}, { replace: true })
+  }, [params, setParams])
 
   return (
     <div className="space-y-4 pb-4">
@@ -74,7 +80,7 @@ export function CoursesPage() {
       />
 
       {/* Filtros por área: carrusel horizontal */}
-      <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filtrar por área">
+      <div className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filtrar por área">
         <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>
           Todos
         </FilterChip>

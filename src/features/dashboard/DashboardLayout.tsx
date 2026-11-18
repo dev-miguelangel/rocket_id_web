@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router'
 import { RocketIdBadge } from '../../components/RocketIdBadge'
 import { BottomSheet } from '../../components/Sheet'
 import { PrivacySettings } from '../contacts/PrivacySettings'
-import { NotificationsSheet, UnreadBadge, useNotifications } from '../notifications/NotificationsBell'
+import { NotificationsButton } from '../notifications/NotificationsBell'
 import { ShareProfile } from '../contacts/ShareProfile'
 import { toTitleCaseName } from '../../lib/names'
 import { useRocketId } from '../auth/useRocketId'
@@ -32,7 +32,10 @@ export function DashboardLayout() {
       <header className="pt-safe sticky top-0 z-20 border-b border-line/70 bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
           <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/perfil/') ? 'Perfil' : pathname.startsWith('/e/') ? 'Evento' : 'rocketId')}</h1>
-          <UserMenu />
+          <div className="flex items-center gap-1">
+            <NotificationsButton />
+            <UserMenu />
+          </div>
         </div>
       </header>
 
@@ -81,11 +84,10 @@ function UserMenu() {
   const rocketId = useRocketId()
   const { user, signOut } = useAuth()
   const [open, setOpen] = useState(false)
-  const [sheet, setSheet] = useState<'share' | 'privacy' | 'notifications' | null>(null)
-  const notifications = useNotifications()
+  const [sheet, setSheet] = useState<'share' | 'privacy' | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const closeSheet = useCallback(() => setSheet(null), [])
-  const openSheet = (s: 'share' | 'privacy' | 'notifications') => {
+  const openSheet = (s: 'share' | 'privacy') => {
     setOpen(false)
     setSheet(s)
   }
@@ -104,7 +106,7 @@ function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        aria-label={notifications.unread ? `Menú de usuario, ${notifications.unread} notificaciones sin leer` : 'Menú de usuario'}
+        aria-label="Menú de usuario"
         aria-expanded={open}
         className="relative flex size-11 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white active:opacity-80"
       >
@@ -113,7 +115,6 @@ function UserMenu() {
         ) : (
           (user?.displayName?.[0] ?? '?').toUpperCase()
         )}
-        <UnreadBadge count={notifications.unread} className="absolute -top-1 -right-1" />
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-line bg-card p-2 shadow-xl">
@@ -123,12 +124,6 @@ function UserMenu() {
             <RocketIdBadge rocketId={rocketId} className="mt-2" />
           </div>
           <div className="border-t border-line py-1">
-            <MenuItem
-              icon={<BellIcon />}
-              label="Notificaciones"
-              badge={notifications.unread}
-              onClick={() => openSheet('notifications')}
-            />
             <MenuItem icon={<ShareMenuIcon />} label="Compartir mi perfil" onClick={() => openSheet('share')} />
             <MenuItem icon={<LockIcon />} label="Privacidad" onClick={() => openSheet('privacy')} />
           </div>
@@ -143,7 +138,6 @@ function UserMenu() {
         </div>
       )}
 
-      <NotificationsSheet open={sheet === 'notifications'} onClose={closeSheet} items={notifications.items} />
       <BottomSheet open={sheet === 'share'} title="Compartir mi perfil" onClose={closeSheet}>
         <ShareProfile heading={false} />
       </BottomSheet>
@@ -154,22 +148,13 @@ function UserMenu() {
   )
 }
 
-function MenuItem({ icon, label, badge = 0, onClick }: { icon: ReactNode; label: string; badge?: number; onClick: () => void }) {
+function MenuItem({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-fg active:bg-line/60">
       <span className="text-muted">{icon}</span>
       <span className="flex-1">{label}</span>
-      {badge > 0 && <UnreadBadge count={badge} className="ring-card" />}
       <span className="text-muted" aria-hidden="true">›</span>
     </button>
-  )
-}
-
-function BellIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0" />
-    </svg>
   )
 }
 

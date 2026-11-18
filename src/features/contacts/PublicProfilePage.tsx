@@ -93,7 +93,7 @@ export function PublicProfilePage() {
                 {p.displayName}
                 {verified.length > 0 && <VerifiedBadge className="size-6" label="Tiene certificaciones verificadas" />}
               </h1>
-              <p className="mt-1 rounded-full bg-primary/10 px-3 py-1 font-mono text-sm font-bold tracking-wider text-primary-text">
+              <p className="mt-1 rounded-full bg-primary/10 px-3 py-1 font-mono text-sm font-bold tracking-wider whitespace-nowrap text-primary-text">
                 🚀 {p.rocketId}
               </p>
               {p.isMock && (

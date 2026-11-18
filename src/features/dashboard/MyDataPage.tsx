@@ -215,6 +215,7 @@ export function MyDataPage() {
         onSubmit={handleSave}
         saving={saving}
         canSave={dirty}
+        dirty={dirty}
       >
         {EditForm && <EditForm form={draft} errors={errors} set={set} />}
         {editing === 'skills' && (
