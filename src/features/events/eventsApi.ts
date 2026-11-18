@@ -70,6 +70,67 @@ function parseParticipant(uid: string, v: Record<string, unknown>): Participant 
   }
 }
 
+// ---------- Notificaciones ----------
+
+export type NotificationType =
+  | 'event_invite'
+  | 'sensitive_view'
+  | 'event_updated'
+  | 'event_cancelled'
+  | 'participant_confirmed'
+  | 'participant_joined'
+  | 'participant_declined'
+
+type Actor = { uid: string; displayName: string }
+
+function notificationData(type: NotificationType, event: Pick<EventDoc, 'id' | 'title'>, actor: Actor, detail?: string) {
+  return {
+    type,
+    eventId: event.id,
+    eventTitle: event.title.slice(0, 100),
+    actorUid: actor.uid,
+    actorName: actor.displayName.slice(0, 120),
+    ...(detail ? { detail: detail.slice(0, 160) } : {}),
+    read: false,
+    createdAt: serverTimestamp(),
+  }
+}
+
+const newNotifRef = (uid: string) => doc(collection(db, 'users', uid, 'notifications'))
+
+/**
+ * Notifica a varios participantes. Se divide en lotes de 15 porque cada notificación
+ * hace que las reglas lean documentos (límite de lecturas por lote).
+ */
+async function notifyMany(uids: string[], type: NotificationType, event: Pick<EventDoc, 'id' | 'title'>, actor: Actor, detail?: string) {
+  for (let i = 0; i < uids.length; i += 15) {
+    const batch = writeBatch(db)
+    uids.slice(i, i + 15).forEach((uid) => batch.set(newNotifRef(uid), notificationData(type, event, actor, detail)))
+    await batch.commit()
+  }
+}
+
+/** Participantes a avisar de cambios: invitados y confirmados (no el organizador ni quienes no van) */
+async function activeParticipantUids(eid: string, exclude: string) {
+  const snap = await getDocs(collection(db, 'events', eid, 'participants'))
+  return snap.docs.filter((d) => d.id !== exclude && d.data().status !== 'declined').map((d) => d.id)
+}
+
+/** Resumen legible de qué cambió, para la notificación "evento editado" */
+function describeChanges(old: EventDoc, input: EventInput) {
+  const out: string[] = []
+  if (old.startAt.getTime() !== input.startAt.getTime() || old.endAt.getTime() !== input.endAt.getTime()) out.push('fecha u hora')
+  if (old.location.trim() !== input.location.trim()) out.push('lugar')
+  if (old.meetingPoint.trim() !== input.meetingPoint.trim()) out.push('punto de encuentro')
+  if (old.title.trim() !== input.title.trim()) out.push('nombre')
+  if (old.description.trim() !== input.description.trim()) out.push('descripción')
+  if (JSON.stringify(old.requirements) !== JSON.stringify(input.requirements)) out.push('requisitos')
+  if (old.capacity !== (input.capacity || 0)) out.push('cupos')
+  if (old.visibility !== input.visibility) out.push('visibilidad')
+  if (old.activity !== input.activity) out.push('actividad')
+  return out.length ? `Cambió: ${out.join(', ')}` : ''
+}
+
 // ---------- Lectura ----------
 
 export function subscribeEvent(id: string, cb: (e: EventDoc | null) => void) {
@@ -171,17 +232,25 @@ export async function createEvent(me: Me, input: EventInput) {
   return ref.id
 }
 
-/** Editar (solo organizador). Conserva organizador, estado y fecha de creación. */
-export async function updateEvent(eid: string, input: EventInput) {
+/** Editar (solo organizador) y avisar a los participantes de lo que cambió. */
+export async function updateEvent(old: EventDoc, input: EventInput, actor: Actor) {
+  const detail = describeChanges(old, input)
   const batch = writeBatch(db)
-  batch.update(eventRef(eid), eventFields(input))
+  batch.update(eventRef(old.id), eventFields(input))
   await batch.commit()
+  if (!detail) return
+  const uids = await activeParticipantUids(old.id, actor.uid)
+  await notifyMany(uids, 'event_updated', { id: old.id, title: input.title.trim() || old.title }, actor, detail).catch((e) =>
+    console.warn('notify event_updated', e),
+  )
 }
 
-export async function cancelEvent(eid: string) {
+export async function cancelEvent(event: EventDoc, actor: Actor) {
   const batch = writeBatch(db)
-  batch.update(eventRef(eid), { status: 'cancelled' })
+  batch.update(eventRef(event.id), { status: 'cancelled' })
   await batch.commit()
+  const uids = await activeParticipantUids(event.id, actor.uid)
+  await notifyMany(uids, 'event_cancelled', event, actor).catch((e) => console.warn('notify event_cancelled', e))
 }
 
 /** El organizador invita a alguien de su cordada (y le llega una notificación) */
@@ -198,15 +267,7 @@ export async function invite(event: EventDoc, actor: Me, p: Me) {
     invitedBy: actor.uid,
     updatedAt: serverTimestamp(),
   })
-  batch.set(doc(collection(db, 'users', p.uid, 'notifications')), {
-    type: 'event_invite',
-    eventId: event.id,
-    eventTitle: event.title,
-    actorUid: actor.uid,
-    actorName: actor.displayName,
-    read: false,
-    createdAt: serverTimestamp(),
-  })
+  batch.set(newNotifRef(p.uid), notificationData('event_invite', event, actor))
   await batch.commit()
 }
 
@@ -231,7 +292,8 @@ function loadOwnProfile(uid: string) {
  * Confirmar asistencia (o unirse a un evento público / por enlace) con consentimiento:
  * guarda el estado y una copia de la ficha de emergencia que solo el organizador puede ver.
  */
-export async function confirmAttendance(eid: string, me: Me, alreadyParticipant: boolean) {
+export async function confirmAttendance(event: EventDoc, me: Me, alreadyParticipant: boolean) {
+  const eid = event.id
   const p = await loadOwnProfile(me.uid)
   const emergencyComplete = CRITICAL_FIELDS.every(({ key }) => !!p[key].trim())
   const batch = writeBatch(db)
@@ -268,14 +330,18 @@ export async function confirmAttendance(eid: string, me: Me, alreadyParticipant:
     medications: p.medications,
     updatedAt: serverTimestamp(),
   })
+  // Aviso al organizador: confirmó (venía invitado o había dicho que no) o se unió (enlace/público)
+  if (event.organizerUid !== me.uid)
+    batch.set(newNotifRef(event.organizerUid), notificationData(alreadyParticipant ? 'participant_confirmed' : 'participant_joined', event, me))
   await batch.commit()
 }
 
 /** Rechazar invitación o salir del evento: también se borra la ficha compartida */
-export async function declineAttendance(eid: string, uid: string) {
+export async function declineAttendance(event: EventDoc, me: Actor) {
   const batch = writeBatch(db)
-  batch.update(participantRef(eid, uid), { status: 'declined', updatedAt: serverTimestamp() })
-  batch.delete(sensitiveRef(eid, uid))
+  batch.update(participantRef(event.id, me.uid), { status: 'declined', updatedAt: serverTimestamp() })
+  batch.delete(sensitiveRef(event.id, me.uid))
+  if (event.organizerUid !== me.uid) batch.set(newNotifRef(event.organizerUid), notificationData('participant_declined', event, me))
   await batch.commit()
 }
 
@@ -301,17 +367,9 @@ export interface SensitiveData {
  * Primero registra la visualización y notifica a la persona (las reglas lo exigen); luego lee.
  */
 export async function viewSensitive(event: EventDoc, actor: Me, pid: string): Promise<SensitiveData | null> {
-  const notifRef = doc(collection(db, 'users', pid, 'notifications'))
+  const notifRef = newNotifRef(pid)
   const batch = writeBatch(db)
-  batch.set(notifRef, {
-    type: 'sensitive_view',
-    eventId: event.id,
-    eventTitle: event.title,
-    actorUid: actor.uid,
-    actorName: actor.displayName,
-    read: false,
-    createdAt: serverTimestamp(),
-  })
+  batch.set(notifRef, notificationData('sensitive_view', event, actor))
   batch.set(viewLogRef(event.id, pid), { viewerUid: actor.uid, lastViewedAt: serverTimestamp(), notifId: notifRef.id })
   await batch.commit()
   const snap = await getDoc(sensitiveRef(event.id, pid))

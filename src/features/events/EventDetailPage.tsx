@@ -107,7 +107,7 @@ export function EventDetailPage() {
     if (!me) return
     setBusy(true)
     try {
-      await confirmAttendance(event.id, me, !!myRow)
+      await confirmAttendance(event, me, !!myRow)
       navigator.vibrate?.([10, 40, 10])
       toast.show('¡Confirmado! Nos vemos en la salida 🏔️')
       setSheet(null)
@@ -120,10 +120,10 @@ export function EventDetailPage() {
   }
 
   const doDecline = async () => {
-    if (!user) return
+    if (!me) return
     setBusy(true)
     try {
-      await declineAttendance(event.id, user.uid)
+      await declineAttendance(event, me)
       toast.show('Avisamos al organizador que no vas')
     } catch {
       toast.show('No se pudo actualizar. Inténtalo de nuevo.')
@@ -317,8 +317,9 @@ export function EventDetailPage() {
             <button
               type="button"
               onClick={() =>
-                cancelEvent(event.id)
-                  .then(() => toast.show('Evento cancelado'))
+                (me ? cancelEvent(event, me) : Promise.reject(new Error('sin perfil')))
+                  .then(() => toast.show('Evento cancelado · avisamos a los participantes'))
+                  .catch(() => toast.show('No se pudo cancelar. Inténtalo de nuevo.'))
                   .finally(closeSheet)
               }
               className="h-12 rounded-xl bg-red-600 font-semibold text-white active:bg-red-700"

@@ -96,7 +96,7 @@ export function EventFormSheet({ open, onClose, onCreated, event }: Props) {
         publicAck,
       }
       if (event) {
-        await updateEvent(event.id, input)
+        await updateEvent(event, input, me)
         navigator.vibrate?.(10)
         onCreated(event.id)
       } else {

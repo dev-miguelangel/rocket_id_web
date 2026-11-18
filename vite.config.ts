@@ -18,6 +18,9 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        // Si la app está instalada, Chrome abre los enlaces de rocketid.vercel.app en ella
+        handle_links: 'preferred',
+        launch_handler: { client_mode: ['navigate-existing', 'auto'] },
         orientation: 'portrait',
         background_color: '#FAFAFA',
         theme_color: '#0D9488',

@@ -57,6 +57,7 @@ export function PrivacySettings() {
       <div className="space-y-2 rounded-2xl border border-line bg-card p-4 text-sm">
         <p className="font-medium text-fg">👁️ Lo que ven otras personas</p>
         <p className="text-muted">Nombre, foto, rocketId y tus conocimientos y certificaciones.</p>
+        <p className="text-muted">Quien tenga tu enlace o tu rocketId puede ver este perfil, incluso sin tener cuenta en rocketId.</p>
         <p className="pt-2 font-medium text-fg">🔒 Nunca se muestra</p>
         <p className="text-muted">Correo, documento, teléfono, fecha de nacimiento, contacto de emergencia ni datos de salud.</p>
       </div>

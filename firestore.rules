@@ -57,21 +57,29 @@ service cloud.firestore {
         && (!('exactOnly' in request.resource.data) || request.resource.data.exactOnly is bool);
       allow delete: if false;
 
-      // Notificaciones de la persona. Solo las crean organizadores de eventos donde participa:
-      // invitaciones y avisos de que vieron su ficha de emergencia.
+      // Notificaciones de la persona (no hay push: se ven en el menú del avatar).
+      //  · Organizador → participante: invitación, evento editado, evento cancelado, ficha vista.
+      //  · Participante → organizador: confirmó, se unió, no podrá ir.
       match /notifications/{nid} {
         allow read, delete: if isOwner(uid);
         allow update: if isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
         allow create: if request.auth != null
-          && request.resource.data.keys().hasOnly(['type', 'eventId', 'eventTitle', 'actorUid', 'actorName', 'read', 'createdAt'])
-          && request.resource.data.type in ['event_invite', 'sensitive_view']
+          && request.resource.data.keys().hasOnly(['type', 'eventId', 'eventTitle', 'actorUid', 'actorName', 'detail', 'read', 'createdAt'])
           && request.resource.data.actorUid == request.auth.uid
+          && uid != request.auth.uid
           && request.resource.data.read == false
           && request.resource.data.createdAt == request.time
           && request.resource.data.eventTitle is string && request.resource.data.eventTitle.size() <= 100
           && request.resource.data.actorName is string && request.resource.data.actorName.size() <= 120
-          && get(eventPath(request.resource.data.eventId)).data.organizerUid == request.auth.uid
-          && existsAfter(/databases/$(database)/documents/events/$(request.resource.data.eventId)/participants/$(uid));
+          && (!('detail' in request.resource.data) || (request.resource.data.detail is string && request.resource.data.detail.size() <= 160))
+          && (
+            (request.resource.data.type in ['event_invite', 'sensitive_view', 'event_updated', 'event_cancelled']
+              && get(eventPath(request.resource.data.eventId)).data.organizerUid == request.auth.uid
+              && existsAfter(participantPath(request.resource.data.eventId, uid)))
+            || (request.resource.data.type in ['participant_confirmed', 'participant_joined', 'participant_declined']
+              && get(eventPath(request.resource.data.eventId)).data.organizerUid == uid
+              && existsAfter(participantPath(request.resource.data.eventId, request.auth.uid)))
+          );
       }
 
       // Mi cordada: lista privada de contactos. Solo se puede agregar a personas con perfil público.
@@ -103,9 +111,9 @@ service cloud.firestore {
       // La persona solo puede leerlas; nadie puede escribirlas desde el cliente.
       // TODO: permitir escritura a instituciones (custom claim) cuando exista su app.
       match /private/verifications {
-        // Legible por cualquier persona autenticada: las insignias de los perfiles públicos se
-        // calculan con estas verificaciones (no con lo que declara cada persona).
-        allow get: if request.auth != null;
+        // Legible por cualquiera (también sin sesión, para el perfil público /p/{rocketId}):
+        // las insignias se calculan con estas verificaciones, no con lo que declara cada persona.
+        allow get: if true;
         allow write: if false;
       }
 
@@ -135,8 +143,8 @@ service cloud.firestore {
     // Solo se puede crear (si ya existe, el set cuenta como update y se rechaza → colisión),
     // una vez por persona, y nunca modificar ni borrar.
     match /rocketIds/{code} {
-      // get (no list): buscar a alguien por su rocketId exacto
-      allow get: if request.auth != null;
+      // get (no list): buscar a alguien por su rocketId exacto. Sin sesión, para el enlace público.
+      allow get: if true;
       allow create: if request.auth != null
         && code.matches('^[BCDFGHJKLMNPQRSTVWXYZ][AEIOU]-[0-9]{4}$')
         && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
@@ -150,11 +158,11 @@ service cloud.firestore {
     }
 
     // Perfil público: nombre, avatar, rocketId y conocimientos.
-    // get: cualquiera con el uid (búsqueda exacta o enlace compartido).
+    // get: cualquiera con el uid, también sin sesión (búsqueda exacta o enlace compartido /p/{rocketId}).
     // list: solo perfiles con búsqueda aproximada activa (searchable) y de a 10 como máximo;
     // los perfiles "solo búsquedas exactas" nunca aparecen en un listado.
     match /publicProfiles/{uid} {
-      allow get: if request.auth != null;
+      allow get: if true;
       allow list: if request.auth != null
         && request.query.limit <= 10
         && resource.data.searchable == true;

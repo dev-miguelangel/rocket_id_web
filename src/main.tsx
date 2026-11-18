@@ -11,6 +11,7 @@ import { ProtectedRoute, PublicOnlyRoute } from './features/auth/RouteGuards'
 import { DashboardLayout } from './features/dashboard/DashboardLayout'
 import { ContactsPage } from './features/contacts/ContactsPage'
 import { ProfileLinkPage } from './features/contacts/ProfileLinkPage'
+import { PublicProfilePage } from './features/contacts/PublicProfilePage'
 import { CoursesPage } from './features/courses/CoursesPage'
 import { EventDetailPage } from './features/events/EventDetailPage'
 import { EventsPage } from './features/events/EventsPage'
@@ -18,6 +19,8 @@ import { HomePage } from './features/dashboard/HomePage'
 import { MyDataPage } from './features/dashboard/MyDataPage'
 
 const router = createBrowserRouter([
+  // Perfil público de deportista: se ve sin sesión, como página independiente
+  { path: '/p/:rocketId', element: <PublicProfilePage /> },
   {
     element: <PublicOnlyRoute />,
     children: [{ path: '/login', element: <LoginPage /> }],
@@ -32,7 +35,7 @@ const router = createBrowserRouter([
           { path: 'mis-datos', element: <MyDataPage /> },
           { path: 'cursos', element: <CoursesPage /> },
           { path: 'cordada', element: <ContactsPage /> },
-          { path: 'p/:rocketId', element: <ProfileLinkPage /> },
+          { path: 'perfil/:rocketId', element: <ProfileLinkPage /> },
           { path: 'eventos', element: <EventsPage /> },
           { path: 'e/:eventId', element: <EventDetailPage /> },
         ],
