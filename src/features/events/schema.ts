@@ -53,6 +53,8 @@ export interface Participant {
   status: ParticipantStatus
   /** Autoinformado al confirmar: ¿su ficha de emergencia está completa? */
   emergencyComplete: boolean
+  /** Última actualización de su participación o ficha (ms) */
+  updatedAt: number
 }
 
 export const PARTICIPANT_STATUS = {

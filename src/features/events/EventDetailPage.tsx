@@ -17,7 +17,9 @@ import {
   confirmAttendance,
   declineAttendance,
   invite,
+  queueOfflineViewNotice,
   removeParticipant,
+  saveFichasOffline,
   subscribeEvent,
   subscribeParticipants,
   viewSensitive,
@@ -36,6 +38,8 @@ import {
   type Requirement,
 } from './schema'
 import { useMe } from './useMe'
+import { useOnline } from '../../lib/useOnline'
+import { getOfflineEvent, removeOfflineEvent, removeOfflineFicha, saveOfflineFichas } from './offlineFichas'
 
 const primaryBtn =
   'flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-base font-semibold text-white transition active:bg-primary-dark disabled:opacity-50'
@@ -59,7 +63,7 @@ export function EventDetailPage() {
   const [event, setEvent] = useState<EventDoc | null | undefined>(undefined)
   const [participants, setParticipants] = useState<Participant[] | null>(null)
   const [profiles, setProfiles] = useState<Record<string, SearchResult>>({})
-  const [sheet, setSheet] = useState<null | 'consent' | 'invite' | 'cancel' | 'edit' | 'options'>(null)
+  const [sheet, setSheet] = useState<null | 'consent' | 'invite' | 'cancel' | 'edit' | 'options' | 'offline'>(null)
   const [openP, setOpenP] = useState<Participant | null>(null)
   const [busy, setBusy] = useState(false)
   const [editSession, setEditSession] = useState(0)
@@ -238,6 +242,10 @@ export function EventDetailPage() {
         </Block>
       )}
 
+      {isOrganizer && !cancelled && sensitiveWindowOpen(event) && (
+        <OfflineStatus event={event} participants={participants ?? []} onOpen={() => setSheet('offline')} />
+      )}
+
       {isOrganizer && !cancelled && <Checklist event={event} participants={participants ?? []} profiles={profiles} />}
 
       {/* Participantes (solo visible para quienes participan) */}
@@ -315,6 +323,11 @@ export function EventDetailPage() {
               }}
             />
           </li>
+          {sensitiveWindowOpen(event) && (
+            <li>
+              <OptionRow icon="📥" label="Fichas sin conexión" onClick={() => setSheet('offline')} />
+            </li>
+          )}
         </ul>
         {!past && (
           <ul className="overflow-hidden rounded-2xl border border-line bg-card">
@@ -367,6 +380,9 @@ export function EventDetailPage() {
         <p className="text-base text-fg">¿Cancelar “{event.title}”? Los participantes verán el evento como cancelado.</p>
       </BottomSheet>
       <ParticipantSheet participant={openP} event={event} isOrganizer={isOrganizer} onClose={closeP} />
+      {isOrganizer && (
+        <OfflineFichasSheet open={sheet === 'offline'} event={event} participants={participants ?? []} onClose={closeSheet} onDone={(m) => toast.show(m)} />
+      )}
 
       {toast.node}
     </div>
@@ -553,8 +569,10 @@ function InviteSheet({
 
 function ParticipantSheet({ participant, event, isOrganizer, onClose }: { participant: Participant | null; event: EventDoc; isOrganizer: boolean; onClose: () => void }) {
   const me = useMe()
+  const online = useOnline()
   const [shown, setShown] = useState(participant)
   const [profile, setProfile] = useState<SearchResult | null | undefined>(undefined)
+  const [fromDevice, setFromDevice] = useState(false)
   const [step, setStep] = useState<'profile' | 'warn' | 'data'>('profile')
   const [data, setData] = useState<SensitiveData | null | undefined>(undefined)
   const [loading, setLoading] = useState(false)
@@ -564,6 +582,7 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
     setProfile(undefined)
     setStep('profile')
     setData(undefined)
+    setFromDevice(false)
   }
 
   useEffect(() => {
@@ -580,9 +599,20 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
   if (!shown) return null
   const canView =
     isOrganizer && shown.role === 'participant' && shown.status === 'confirmed' && sensitiveWindowOpen(event) && event.status === 'published'
+  // Copia guardada en este teléfono (para emergencias sin señal)
+  const local = me ? getOfflineEvent(event.id, me.uid)?.fichas[shown.uid] : undefined
+  const offlineNoCopy = canView && !online && !local
 
   const view = async () => {
     if (!me) return
+    // Sin señal: se abre la copia del teléfono y el aviso queda en cola hasta que vuelva la conexión
+    if (!online && local) {
+      queueOfflineViewNotice(event, me, shown.uid)
+      setData(local.data)
+      setFromDevice(true)
+      setStep('data')
+      return
+    }
     setLoading(true)
     try {
       setData(await viewSensitive(event, me, shown.uid))
@@ -598,9 +628,14 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
 
   const footer =
     canView && step === 'profile' ? (
-      <div className="pb-3">
-        <button type="button" onClick={() => setStep('warn')} className={primaryBtn}>
-          🩺 Ver ficha de emergencia
+      <div className="space-y-2 pb-3">
+        {offlineNoCopy && (
+          <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+            Sin conexión y sin copia en este teléfono. Para la próxima, guarda las fichas antes de salir desde <strong>Opciones → Fichas sin conexión</strong>.
+          </p>
+        )}
+        <button type="button" onClick={() => setStep('warn')} disabled={offlineNoCopy} className={primaryBtn}>
+          🩺 Ver ficha de emergencia{!online && local ? ' (sin conexión)' : ''}
         </button>
       </div>
     ) : step === 'warn' ? (
@@ -638,7 +673,8 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
             <div>
               <p className="font-semibold">{firstName(shown.displayName)} será notificado</p>
               <p className="mt-1 text-base">
-                Vas a ver datos sensibles (identificación, salud y contacto de emergencia). {firstName(shown.displayName)} recibirá una notificación indicando que viste su ficha en “{event.title}”.
+                Vas a ver datos sensibles (identificación, salud y contacto de emergencia). {firstName(shown.displayName)} recibirá una notificación indicando que viste su ficha en “{event.title}”
+                {!online && local ? ' apenas vuelva la conexión' : ''}.
               </p>
             </div>
           </div>
@@ -646,6 +682,11 @@ function ParticipantSheet({ participant, event, isOrganizer, onClose }: { partic
         </div>
       )}
 
+      {step === 'data' && fromDevice && local && (
+        <p className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-500/10 dark:text-sky-200">
+          📥 Copia guardada en este teléfono el {new Date(local.savedAt).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. Puede no incluir cambios posteriores.
+        </p>
+      )}
       {step === 'data' && (data ? <SensitiveView data={data} /> : <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">No se pudo abrir la ficha. Puede que la persona no la haya compartido o que el acceso ya haya expirado.</p>)}
     </BottomSheet>
   )
@@ -701,5 +742,174 @@ function Group({ title, items }: { title: string; items: [string, string][] }) {
         ))}
       </dl>
     </section>
+  )
+}
+
+// ---------- Fichas sin conexión (organizador) ----------
+
+function OfflineStatus({ event, participants, onOpen }: { event: EventDoc; participants: Participant[]; onOpen: () => void }) {
+  const me = useMe()
+  const online = useOnline()
+  const saved = me ? getOfflineEvent(event.id, me.uid) : null
+  const confirmed = participants.filter((p) => p.role === 'participant' && p.status === 'confirmed')
+  const savedCount = saved ? confirmed.filter((p) => saved.fichas[p.uid]).length : 0
+  const outdated = saved ? confirmed.filter((p) => !saved.fichas[p.uid] || p.updatedAt > saved.fichas[p.uid].savedAt).length : 0
+  if (!confirmed.length && !saved) return null
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3 text-left active:bg-line/60"
+    >
+      <span className="text-xl" aria-hidden="true">
+        {online ? '📥' : '📵'}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-base font-medium text-fg">
+          {saved ? `${savedCount} de ${confirmed.length} fichas guardadas sin conexión` : 'Guarda las fichas para usarlas sin señal'}
+        </span>
+        <span className="block text-sm text-muted">
+          {!online
+            ? saved
+              ? 'Sin conexión: puedes abrir las fichas guardadas en este teléfono'
+              : 'Sin conexión: no hay fichas guardadas en este teléfono'
+            : saved
+              ? outdated
+                ? `${outdated} por actualizar · toca para revisar`
+                : 'Todo al día'
+              : 'Recomendado antes de salir a terreno'}
+        </span>
+      </span>
+      <span className="text-lg text-muted" aria-hidden="true">
+        ›
+      </span>
+    </button>
+  )
+}
+
+function OfflineFichasSheet({
+  open,
+  event,
+  participants,
+  onClose,
+  onDone,
+}: {
+  open: boolean
+  event: EventDoc
+  participants: Participant[]
+  onClose: () => void
+  onDone: (msg: string) => void
+}) {
+  const me = useMe()
+  const online = useOnline()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [, force] = useState(0)
+  const saved = me ? getOfflineEvent(event.id, me.uid) : null
+  const confirmed = participants.filter((p) => p.role === 'participant' && p.status === 'confirmed')
+  const pending = confirmed.filter((p) => !saved?.fichas[p.uid] || p.updatedAt > (saved?.fichas[p.uid]?.savedAt ?? 0))
+
+  const save = async () => {
+    if (!me) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await saveFichasOffline(event, me, participants, saved?.fichas ?? {})
+      saveOfflineFichas(event.id, me.uid, event.title, event.endAt.getTime(), res.saved)
+      // Quien ya no está confirmado no debe quedar en el teléfono
+      const ok = new Set(confirmed.map((p) => p.uid))
+      Object.keys(getOfflineEvent(event.id, me.uid)?.fichas ?? {}).forEach((uid) => !ok.has(uid) && removeOfflineFicha(event.id, uid))
+      navigator.vibrate?.(10)
+      const n = Object.keys(res.saved).length
+      onDone(n ? `${n} ficha${n === 1 ? '' : 's'} guardada${n === 1 ? '' : 's'} en este teléfono` : 'Las fichas ya estaban al día')
+      if (res.failed) setError(`${res.failed} ficha${res.failed === 1 ? '' : 's'} no se pudieron descargar. Inténtalo de nuevo.`)
+      else onClose()
+    } catch (e) {
+      console.error('saveFichasOffline', e)
+      setError('No se pudieron guardar. Revisa tu conexión e inténtalo de nuevo.')
+    } finally {
+      setBusy(false)
+      force((n) => n + 1)
+    }
+  }
+
+  const remove = () => {
+    removeOfflineEvent(event.id)
+    force((n) => n + 1)
+    onDone('Fichas borradas de este teléfono')
+    onClose()
+  }
+
+  return (
+    <BottomSheet
+      open={open}
+      title="Fichas sin conexión"
+      onClose={onClose}
+      footer={
+        <div className="space-y-2 pb-3">
+          <button type="button" onClick={save} disabled={busy || !online || !confirmed.length || (!!saved && !pending.length)} className={primaryBtn}>
+            {busy
+              ? 'Guardando…'
+              : !online
+                ? 'Necesitas conexión para guardar'
+                : saved
+                  ? pending.length
+                    ? `Actualizar ${pending.length} ficha${pending.length === 1 ? '' : 's'}`
+                    : 'Fichas al día'
+                  : `Guardar ${confirmed.length} ficha${confirmed.length === 1 ? '' : 's'} en este teléfono`}
+          </button>
+          {saved && (
+            <button type="button" onClick={remove} className="h-11 w-full rounded-lg text-sm font-medium text-red-600 active:bg-red-50 dark:text-red-400 dark:active:bg-red-500/10">
+              Borrar fichas de este teléfono
+            </button>
+          )}
+        </div>
+      }
+    >
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+        <p className="font-semibold text-fg">Para emergencias en terreno sin señal</p>
+        <p className="mt-1 max-w-prose text-base text-fg-soft">
+          Se descargan las fichas de emergencia de las personas confirmadas, <strong>sin mostrarlas</strong>. Si alguien tiene una emergencia y no hay señal, podrás abrir su ficha desde este teléfono.
+        </p>
+      </div>
+      <ul className="space-y-3 rounded-2xl border border-line bg-card p-4">
+        {[
+          ['🔔', 'Cada participante recibe un aviso de que guardaste su ficha.'],
+          ['👁️', 'Si abres una ficha, se le avisa igual que siempre; sin señal, el aviso llega apenas vuelva la conexión.'],
+          ['🗑️', 'Las copias se borran solas 2 días después del evento y al cerrar sesión.'],
+          ['📱', 'Quedan solo en este teléfono. Actualízalas antes de salir si alguien cambió su ficha.'],
+        ].map(([i, t]) => (
+          <li key={t} className="flex gap-3 text-base text-fg-soft">
+            <span aria-hidden="true">{i}</span>
+            {t}
+          </li>
+        ))}
+      </ul>
+      {confirmed.length > 0 ? (
+        <section>
+          <h4 className="mb-1.5 px-1 text-xs font-semibold tracking-wide text-muted uppercase">Confirmados ({confirmed.length})</h4>
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-card">
+            {confirmed.map((p) => {
+              const f = saved?.fichas[p.uid]
+              const stale = f && p.updatedAt > f.savedAt
+              return (
+                <li key={p.uid} className="flex items-center gap-3 px-4 py-2.5">
+                  <Avatar name={p.displayName} photoURL={p.photoURL} className="size-9 text-xs" />
+                  <span className="min-w-0 flex-1 truncate text-base text-fg">{p.displayName}</span>
+                  <span className="shrink-0 text-sm text-muted">{!f ? 'Sin guardar' : stale ? '⚠️ Cambió' : '✓ Guardada'}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : (
+        <p className="px-1 text-base text-muted">Todavía no hay personas confirmadas.</p>
+      )}
+      {error && (
+        <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+          ⚠️ {error}
+        </p>
+      )}
+    </BottomSheet>
   )
 }

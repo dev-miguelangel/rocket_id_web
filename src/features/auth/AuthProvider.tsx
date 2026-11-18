@@ -11,6 +11,7 @@ import { auth, googleProvider } from '../../lib/firebase'
 import { ensureRocketId } from '../../lib/rocketId'
 import { syncPublicProfile } from '../contacts/publicProfile'
 import { refreshSharedFichas } from '../events/eventsApi'
+import { clearAllOfflineFichas, purgeOfflineFichas } from '../events/offlineFichas'
 import { upsertUserProfile } from './userProfile'
 
 interface AuthContextValue {
@@ -48,6 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getRedirectResult(auth).catch((e) => setError(friendlyError(e)))
     return onAuthStateChanged(auth, (u) => {
       setUser(u)
+      // Fichas sin conexión: borrar las vencidas o de otra cuenta
+      purgeOfflineFichas(u?.uid)
       if (u)
         upsertUserProfile(u)
           .then(() => ensureRocketId(u.uid))
@@ -70,7 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signOut = () => fbSignOut(auth)
+  const signOut = () => {
+    clearAllOfflineFichas() // ninguna ficha queda en el teléfono al salir
+    return fbSignOut(auth)
+  }
 
   return (
     <AuthContext.Provider value={{ user, signInWithGoogle, signOut, error }}>

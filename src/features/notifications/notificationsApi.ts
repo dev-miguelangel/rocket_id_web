@@ -23,6 +23,7 @@ const TYPES: NotificationType[] = [
   'participant_confirmed',
   'participant_joined',
   'participant_declined',
+  'sensitive_saved',
 ]
 
 const col = (uid: string) => collection(db, 'users', uid, 'notifications')

@@ -68,6 +68,7 @@ function parseParticipant(uid: string, v: Record<string, unknown>): Participant 
     role: v.role === 'organizer' ? 'organizer' : 'participant',
     status: (['invited', 'confirmed', 'declined'].includes(str(v.status)) ? v.status : 'invited') as ParticipantStatus,
     emergencyComplete: v.emergencyComplete === true,
+    updatedAt: toDate(v.updatedAt).getTime(),
   }
 }
 
@@ -81,6 +82,7 @@ export type NotificationType =
   | 'participant_confirmed'
   | 'participant_joined'
   | 'participant_declined'
+  | 'sensitive_saved'
 
 type Actor = { uid: string; displayName: string }
 
@@ -396,6 +398,60 @@ export interface SensitiveData {
  * El organizador ve la ficha de emergencia de un participante.
  * Primero registra la visualización y notifica a la persona (las reglas lo exigen); luego lee.
  */
+const toSensitive = (v: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'updatedAt').map(([k, val]) => [k, str(val)])) as unknown as SensitiveData
+
+/**
+ * Guarda en este teléfono las fichas de los confirmados para emergencias sin señal, SIN mostrarlas.
+ * Cada participante recibe el aviso "guardó tu ficha". Solo descarga las que faltan o cambiaron
+ * desde la última vez. Requiere conexión.
+ */
+export async function saveFichasOffline(
+  event: EventDoc,
+  actor: Me,
+  participants: Participant[],
+  already: Record<string, { savedAt: number }> = {},
+): Promise<{ saved: Record<string, { name: string; data: SensitiveData; savedAt: number }>; skipped: number; failed: number }> {
+  const confirmed = participants.filter((p) => p.role === 'participant' && p.status === 'confirmed')
+  const targets = confirmed.filter((p) => !already[p.uid] || p.updatedAt > already[p.uid].savedAt)
+  // Lotes de 8: cada participante hace que las reglas lean varios documentos (límite por lote)
+  for (let i = 0; i < targets.length; i += 8) {
+    const batch = writeBatch(db)
+    for (const p of targets.slice(i, i + 8)) {
+      const n = newNotifRef(p.uid)
+      batch.set(n, notificationData('sensitive_saved', event, actor))
+      batch.set(viewLogRef(event.id, p.uid), { viewerUid: actor.uid, lastViewedAt: serverTimestamp(), notifId: n.id })
+    }
+    await batch.commit()
+  }
+  const saved: Record<string, { name: string; data: SensitiveData; savedAt: number }> = {}
+  let failed = 0
+  await Promise.all(
+    targets.map(async (p) => {
+      try {
+        const snap = await getDoc(sensitiveRef(event.id, p.uid))
+        if (snap.exists()) saved[p.uid] = { name: p.displayName, data: toSensitive(snap.data()), savedAt: Date.now() }
+        else failed++
+      } catch {
+        failed++
+      }
+    }),
+  )
+  return { saved, skipped: confirmed.length - targets.length, failed }
+}
+
+/**
+ * Abrir una ficha guardada sin conexión: se muestra desde el teléfono y el aviso
+ * "vio tu ficha" queda en cola; Firestore lo envía apenas vuelve la señal.
+ */
+export function queueOfflineViewNotice(event: EventDoc, actor: Me, pid: string) {
+  const n = newNotifRef(pid)
+  const batch = writeBatch(db)
+  batch.set(n, notificationData('sensitive_view', event, actor))
+  batch.set(viewLogRef(event.id, pid), { viewerUid: actor.uid, lastViewedAt: serverTimestamp(), notifId: n.id })
+  batch.commit().catch((e) => console.warn('queueOfflineViewNotice', e))
+}
+
 export async function viewSensitive(event: EventDoc, actor: Me, pid: string): Promise<SensitiveData | null> {
   const notifRef = newNotifRef(pid)
   const batch = writeBatch(db)
@@ -404,6 +460,5 @@ export async function viewSensitive(event: EventDoc, actor: Me, pid: string): Pr
   await batch.commit()
   const snap = await getDoc(sensitiveRef(event.id, pid))
   if (!snap.exists()) return null
-  const v = snap.data()
-  return Object.fromEntries(Object.entries(v).map(([k, val]) => [k, str(val)])) as unknown as SensitiveData
+  return toSensitive(snap.data())
 }

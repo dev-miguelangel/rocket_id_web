@@ -50,4 +50,40 @@ await t('Bob (invitado) NO marca el indicador sin confirmar', () =>
   assertFails(updateDoc(doc(bob, 'events/e1/participants/bob'), { emergencyComplete: true, updatedAt: serverTimestamp() })))
 await t('Bob NO puede escribir la ficha de Ana', () => assertFails(setDoc(doc(bob, 'events/e1/sensitive/ana'), ficha())))
 await t('El organizador NO puede escribir la ficha de Ana', () => assertFails(setDoc(doc(org, 'events/e1/sensitive/ana'), ficha())))
+
+// ---------- Guardar fichas sin conexión ----------
+await env.withSecurityRulesDisabled(async (c) => {
+  const db = c.firestore()
+  for (let i = 0; i < 8; i++) {
+    await setDoc(doc(db, 'events/e1/participants', `p${i}`), { uid: `p${i}`, role: 'participant', status: 'confirmed', emergencyComplete: true })
+    await setDoc(doc(db, 'events/e1/sensitive', `p${i}`), { fullName: `P${i}`, allergies: 'Ninguna' })
+  }
+})
+const saveBatch = (db, actor, pids, type = 'sensitive_saved') => {
+  const b = writeBatch(db)
+  for (const pid of pids) {
+    const n = doc(collection(db, 'users', pid, 'notifications'))
+    b.set(n, { type, eventId: 'e1', eventTitle: 'Plomo', actorUid: actor, actorName: actor, read: false, createdAt: serverTimestamp() })
+    b.set(doc(db, 'events/e1/viewLog', pid), { viewerUid: actor, lastViewedAt: serverTimestamp(), notifId: n.id })
+  }
+  return b.commit()
+}
+const eight = Array.from({ length: 8 }, (_, i) => `p${i}`)
+await t('Organizador guarda 8 fichas en un lote (aviso "guardó tu ficha")', () => assertSucceeds(saveBatch(org, 'org', eight)))
+await t('…y puede descargarlas para guardarlas en el teléfono', async () => {
+  const s = await getDoc(doc(org, 'events/e1/sensitive/p7'))
+  if (s.data()?.allergies !== 'Ninguna') throw new Error('sin datos')
+})
+await t('Cada participante recibió el aviso de ficha guardada', async () => {
+  let found = false
+  await env.withSecurityRulesDisabled(async (c) => {
+    const { getDocs } = await import('firebase/firestore')
+    const s = await getDocs(collection(c.firestore(), 'users/p3/notifications'))
+    found = s.docs.some((d) => d.data().type === 'sensitive_saved')
+  })
+  if (!found) throw new Error('sin aviso')
+})
+await t('Un participante NO puede usar el aviso "guardó" para leer fichas ajenas', () => assertFails(saveBatch(bob, 'bob', ['p1'])))
+await t('Aviso "guardó tu ficha" falso de alguien que no organiza rechazado', () =>
+  assertFails(setDoc(doc(collection(bob, 'users', 'p1', 'notifications')), { type: 'sensitive_saved', eventId: 'e1', eventTitle: 'Plomo', actorUid: 'bob', actorName: 'Bob', read: false, createdAt: serverTimestamp() })))
 await done()

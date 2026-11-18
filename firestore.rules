@@ -73,7 +73,7 @@ service cloud.firestore {
           && request.resource.data.actorName is string && request.resource.data.actorName.size() <= 120
           && (!('detail' in request.resource.data) || (request.resource.data.detail is string && request.resource.data.detail.size() <= 160))
           && (
-            (request.resource.data.type in ['event_invite', 'sensitive_view', 'event_updated', 'event_cancelled']
+            (request.resource.data.type in ['event_invite', 'sensitive_view', 'sensitive_saved', 'event_updated', 'event_cancelled']
               && get(eventPath(request.resource.data.eventId)).data.organizerUid == request.auth.uid
               && existsAfter(participantPath(request.resource.data.eventId, uid)))
             || (request.resource.data.type in ['participant_confirmed', 'participant_joined', 'participant_declined']
@@ -317,7 +317,8 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['viewerUid', 'lastViewedAt', 'notifId'])
           && request.resource.data.viewerUid == request.auth.uid
           && request.resource.data.lastViewedAt == request.time
-          && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.type == 'sensitive_view'
+          // "vio tu ficha" o "guardó tu ficha para usarla sin señal"
+          && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.type in ['sensitive_view', 'sensitive_saved']
           && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.eventId == eid
           && getAfter(/databases/$(database)/documents/users/$(pid)/notifications/$(request.resource.data.notifId)).data.actorUid == request.auth.uid;
         allow delete: if false;

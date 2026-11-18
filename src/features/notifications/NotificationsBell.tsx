@@ -44,6 +44,12 @@ const T: Record<NotificationType, { icon: string; tone: string; text: (n: AppNot
     text: (n) => `${n.actorName} no podrá ir a “${n.eventTitle}”`,
     context: 'Invitación rechazada o canceló su asistencia · su ficha ya no está disponible',
   },
+  sensitive_saved: {
+    icon: '📥',
+    tone: 'bg-violet-100 dark:bg-violet-500/15',
+    text: (n) => `${n.actorName} guardó tu ficha de emergencia para usarla sin señal en “${n.eventTitle}”`,
+    context: 'Solo la abrirá en una emergencia; te avisaremos si la ve. Se borra 2 días después del evento',
+  },
   sensitive_view: {
     icon: '👁️',
     tone: 'bg-violet-100 dark:bg-violet-500/15',
