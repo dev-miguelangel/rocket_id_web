@@ -49,3 +49,10 @@ Sin `--yes` los scripts no tocan producción. Con `FIRESTORE_EMULATOR_HOST` defi
 - [ ] Reemplazar `src/features/courses/mockCourses.ts` por la colección `courses` (y quitar el aviso "Cursos de demostración").
 - [ ] Revisar postulaciones de prueba en `applications` (las de cursos `demo-*`).
 - [ ] Borrar la verificación manual de prueba en `users/{tu uid}/private/verifications` (certificación "Test").
+
+## Desde el panel de administración
+
+En `/admin` → **Datos de prueba**, la cuenta de administración puede crear o purgar los usuarios de prueba
+y mostrar u ocultar los cursos de demostración (`config/app.demoCourses`), sin clave de cuenta de servicio.
+Usa el mismo formato y registro (`_mock/registry`) que estos scripts, así que ambos caminos son compatibles.
+Las reglas de Firestore solo le permiten crear o borrar documentos de prueba (uid `mock_*` con marca `_mock`).

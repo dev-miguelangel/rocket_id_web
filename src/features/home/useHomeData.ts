@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { subscribeContacts, type Contact } from '../contacts/contactsApi'
 import { getPublicProfile } from '../contacts/publicProfile'
 import { subscribeMyApplications } from '../courses/applicationsApi'
-import { MOCK_COURSES } from '../courses/mockCourses'
+import { useCatalog } from '../courses/useCatalog'
 import type { Application } from '../courses/schema'
 import { fetchMyEvents, fetchPublicEvents } from '../events/eventsApi'
 import type { EventDoc } from '../events/schema'
@@ -66,6 +66,7 @@ export function useHomeData() {
   }, [contactKey])
 
   const loading = !profile || myEvents === null || contacts === null
+  const catalog = useCatalog()
   const cordadaInUse = useMemo(() => (contacts?.length ? cordada : []), [contacts, cordada])
 
   return useMemo(() => {
@@ -87,7 +88,7 @@ export function useHomeData() {
         cordadaSize: contacts?.length ?? 0,
         applications: apps.length,
       }),
-      courseRecs: recommendCourses(MOCK_COURSES, ctx),
+      courseRecs: recommendCourses(catalog, ctx),
       eventRecs: recommendEvents(publicEvents, { ...ctx, myUid: user.uid }),
       activeEvent: pickActiveEvent(myEvents ?? []),
       setup: {
@@ -97,5 +98,5 @@ export function useHomeData() {
         hasEvent: (myEvents ?? []).length > 0,
       },
     }
-  }, [loading, user, profile, skills, verifications, myEvents, cordadaInUse, contacts, apps, publicEvents])
+  }, [loading, user, profile, skills, verifications, myEvents, cordadaInUse, contacts, apps, publicEvents, catalog])
 }

@@ -9,7 +9,7 @@ import { SKILL_CATEGORIES, categoryOf, emptySkills, type CategoryId, type Skills
 import { subscribeSkills } from '../skills/skillsApi'
 import { subscribeMyApplications } from './applicationsApi'
 import { CourseSheet } from './CourseSheet'
-import { MOCK_COURSES } from './mockCourses'
+import { useCatalog } from './useCatalog'
 import { ApplicationBadge, ProviderLine } from './parts'
 import { formatDateRange, formatPrice, type Application, type Course } from './schema'
 
@@ -20,6 +20,7 @@ export function CoursesPage() {
   const [tab, setTab] = useState<Tab>('explore')
   const [filter, setFilter] = useState<CategoryId | 'all'>('all')
   const [params, setParams] = useSearchParams()
+  const MOCK_COURSES = useCatalog()
   // Abre directamente un curso recomendado: /cursos?curso=ID
   const [selected, setSelected] = useState<Course | null>(() => MOCK_COURSES.find((c) => c.id === params.get('curso')) ?? null)
   const [startStep, setStartStep] = useState<'detail' | 'consent'>('detail')
@@ -52,7 +53,7 @@ export function CoursesPage() {
     const base = tab === 'mine' ? MOCK_COURSES.filter((c) => appByCourse.has(c.id)) : MOCK_COURSES
     const filtered = filter === 'all' ? base : base.filter((c) => c.category === filter)
     return [...filtered].sort((a, b) => a.startDate.localeCompare(b.startDate))
-  }, [tab, filter, appByCourse])
+  }, [tab, filter, appByCourse, MOCK_COURSES])
 
   const close = useCallback(() => {
     setSelected(null)
@@ -94,7 +95,7 @@ export function CoursesPage() {
       {apps === null ? (
         <ListSkeleton />
       ) : courses.length === 0 ? (
-        <EmptyState mine={tab === 'mine'} onExplore={() => setTab('explore')} />
+        <EmptyState mine={tab === 'mine'} noCatalog={MOCK_COURSES.length === 0} onExplore={() => setTab('explore')} />
       ) : (
         <ul className="space-y-3">
           {courses.map((c) => (
@@ -173,11 +174,11 @@ function CourseCard({ course, application, onOpen }: { course: Course; applicati
   )
 }
 
-function EmptyState({ mine, onExplore }: { mine: boolean; onExplore: () => void }) {
+function EmptyState({ mine, noCatalog, onExplore }: { mine: boolean; noCatalog: boolean; onExplore: () => void }) {
   return (
     <div className="flex flex-col items-center rounded-2xl border border-dashed border-line-strong bg-card px-6 py-12 text-center">
       <div className="text-4xl" aria-hidden="true">{mine ? '📭' : '🔎'}</div>
-      <p className="mt-3 font-semibold text-fg">{mine ? 'Aún no postulas a cursos' : 'No hay cursos en esta área'}</p>
+      <p className="mt-3 font-semibold text-fg">{mine ? 'Aún no postulas a cursos' : noCatalog ? 'Pronto habrá cursos disponibles' : 'No hay cursos en esta área'}</p>
       <p className="mt-1 text-sm text-muted">{mine ? 'Explora los cursos disponibles y postula.' : 'Prueba con otra área.'}</p>
       {mine && (
         <button type="button" onClick={onExplore} className="mt-4 h-11 rounded-xl bg-primary px-5 font-semibold text-white active:bg-primary-dark">

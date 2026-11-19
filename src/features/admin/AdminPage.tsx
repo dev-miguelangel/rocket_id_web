@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { HoldButton } from '../../components/HoldButton'
+import { Switch } from '../../components/form'
 import { Logo } from '../../components/Logo'
 import { useAuth } from '../auth/AuthProvider'
 import { DAILY_RANGE, isAdminEmail, loadMetrics, type Metrics } from './adminApi'
+import { mockStatus, purgeMockUsers, seedMockUsers, setDemoCourses, type MockStatus } from './mockData'
 
 const fmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('es-CL') : '—')
 const pct = (a: number | null, b: number | null) => (a !== null && b ? `${Math.round((a / b) * 100)}%` : '—')
@@ -126,6 +129,8 @@ export function AdminPage() {
           <Stat label="Postulaciones a cursos" value={fmt(m?.applications)} loading={!m} />
         </Group>
 
+        {allowed && <TestData onChanged={refresh} />}
+
         <p className="text-sm text-subtle">
           Los conteos se calculan en el servidor y no muestran datos personales. Las cifras de usuarios nuevos y activos pueden incluir cuentas de prueba.
         </p>
@@ -235,5 +240,129 @@ function DailyBars({ data }: { data: { day: string; visits: number }[] }) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+// ---------- Datos de prueba ----------
+
+/** Crear / purgar usuarios de prueba y mostrar / ocultar los cursos de demostración */
+function TestData({ onChanged }: { onChanged: () => void }) {
+  const [st, setSt] = useState<MockStatus | null>(null)
+  const [busy, setBusy] = useState<'seed' | 'purge' | 'courses' | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [confirming, setConfirming] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    mockStatus()
+      .then((r) => alive && setSt(r))
+      .catch(() => alive && setMsg({ ok: false, text: 'No se pudo leer el estado de los datos de prueba.' }))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const run = async (kind: 'seed' | 'purge' | 'courses', fn: () => Promise<string>) => {
+    setBusy(kind)
+    setMsg(null)
+    try {
+      const text = await fn()
+      setMsg({ ok: true, text })
+      setSt(await mockStatus())
+      onChanged()
+    } catch (e) {
+      console.error('test data', e)
+      setMsg({ ok: false, text: 'No se pudo completar. Revisa tu conexión e inténtalo de nuevo; lo ya hecho se conserva.' })
+    } finally {
+      setBusy(null)
+      setConfirming(false)
+    }
+  }
+
+  const seed = () => run('seed', async () => {
+    const n = await seedMockUsers()
+    return n ? `Se crearon ${n} usuarios de prueba.` : 'Los usuarios de prueba ya estaban creados.'
+  })
+  const purge = () => run('purge', async () => `Se eliminaron ${await purgeMockUsers()} documentos de prueba.`)
+  const toggleCourses = () =>
+    st &&
+    run('courses', async () => {
+      await setDemoCourses(!st.demoCourses)
+      return st.demoCourses ? 'Cursos de demostración ocultos para todas las personas.' : 'Cursos de demostración visibles otra vez.'
+    })
+
+  const all = st && st.users >= st.total
+  return (
+    <section aria-labelledby="test-title" className="rounded-2xl border border-line bg-card p-4 sm:p-6">
+      <h2 id="test-title" className="text-lg font-bold">
+        Datos de prueba
+      </h2>
+      <p className="mt-1 text-sm text-muted">Personas y cursos ficticios para mostrar la app. Purga todo antes del lanzamiento.</p>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {/* Usuarios */}
+        <div className="space-y-3 rounded-xl bg-surface p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="text-base font-semibold">Usuarios de prueba</h3>
+            <span className="text-sm text-muted tabular-nums">{st ? `${st.users} de ${st.total}` : '…'}</span>
+          </div>
+          <p className="text-sm text-muted">Cuentas con correo @rocketid.test, buscables en Cordada. Al purgar también se quitan de las cordadas de personas reales.</p>
+          {!all && (
+            <button
+              type="button"
+              onClick={seed}
+              disabled={!st || !!busy}
+              className="h-12 w-full rounded-xl bg-primary text-base font-semibold text-white active:bg-primary-dark disabled:opacity-60"
+            >
+              {busy === 'seed' ? 'Creando…' : st?.users ? `Crear los ${st.total - st.users} que faltan` : 'Crear usuarios de prueba'}
+            </button>
+          )}
+          {st && st.users > 0 &&
+            (confirming ? (
+              <div className="space-y-2" role="group" aria-label="Confirmar purga">
+                <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                  Se eliminarán {st.users} usuarios de prueba y sus referencias. No se puede deshacer, pero puedes volver a crearlos.
+                </p>
+                <HoldButton onConfirm={purge} disabled={!!busy}>
+                  {busy === 'purge' ? 'Purgando…' : 'Mantén presionado para purgar'}
+                </HoldButton>
+                <button type="button" onClick={() => setConfirming(false)} className="h-11 w-full rounded-xl text-base font-medium text-muted active:bg-line/60">
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirming(true)}
+                disabled={!!busy}
+                className="h-12 w-full rounded-xl border border-red-300 text-base font-semibold text-red-700 active:bg-red-50 disabled:opacity-60 dark:border-red-500/40 dark:text-red-300 dark:active:bg-red-500/10"
+              >
+                Purgar usuarios de prueba
+              </button>
+            ))}
+        </div>
+
+        {/* Cursos */}
+        <div className="space-y-3 rounded-xl bg-surface p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 id="demo-courses" className="text-base font-semibold">
+              Cursos de demostración
+            </h3>
+            <Switch checked={!!st?.demoCourses} onChange={toggleCourses} labelledBy="demo-courses" disabled={!st || !!busy} />
+          </div>
+          <p className="text-sm text-muted">
+            {st ? (st.demoCourses ? 'Visibles en Cursos y en las recomendaciones del Inicio.' : 'Ocultos: Cursos muestra "Pronto habrá cursos disponibles".') : '…'} Las
+            postulaciones que ya existen no se borran.
+          </p>
+        </div>
+      </div>
+
+      {msg && (
+        <p role="status" className={`mt-4 rounded-xl p-3 text-sm ${msg.ok ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200' : 'bg-amber-50 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200'}`}>
+          {msg.ok ? '✓ ' : '⚠️ '}
+          {msg.text}
+        </p>
+      )}
+    </section>
   )
 }

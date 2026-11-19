@@ -9,6 +9,17 @@ service cloud.firestore {
         && hashing.sha256(request.auth.token.email.lower()).toHexString().lower() == '4505f00c6a3f199d9f1a7b6a32b492291441f41fd8510826e44a76c0c306c6e4';
     }
 
+    // Datos de prueba (mock): uid con prefijo mock_ y marca _mock. Solo la administración los crea o borra.
+    function isMockUid(uid) {
+      return uid is string && uid.matches('^mock_[a-z0-9_]{1,40}$');
+    }
+    function hasMockMark() {
+      return request.resource.data._mock is map && request.resource.data._mock.isMock == true;
+    }
+    function adminMockWrite(uid) {
+      return isAdmin() && isMockUid(uid) && hasMockMark();
+    }
+
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
@@ -44,6 +55,9 @@ service cloud.firestore {
       allow read: if isOwner(uid);
       // Métricas del panel admin (conteos agregados)
       allow list: if isAdmin();
+      // Panel admin: crear y purgar usuarios de prueba
+      allow create: if adminMockWrite(uid);
+      allow delete: if isAdmin() && isMockUid(uid);
       allow create, update: if isOwner(uid)
         && request.resource.data.keys().hasOnly([
           'displayName', 'email', 'photoURL', 'createdAt', 'lastLoginAt', 'updatedAt',
@@ -112,6 +126,8 @@ service cloud.firestore {
       // Mi cordada: lista privada de contactos. Solo se puede agregar a personas con perfil público.
       match /contacts/{cid} {
         allow read, delete: if isOwner(uid);
+        // Panel admin: al purgar, quitar usuarios de prueba de las cordadas
+        allow delete: if isAdmin() && isMockUid(cid);
         allow create, update: if isOwner(uid)
           && cid != uid
           && request.resource.data.keys().hasOnly(['uid', 'rocketId', 'displayName', 'photoURL', 'addedAt'])
@@ -141,7 +157,9 @@ service cloud.firestore {
         // Legible por cualquiera (también sin sesión, para el perfil público /p/{rocketId}):
         // las insignias se calculan con estas verificaciones, no con lo que declara cada persona.
         allow get: if true;
-        allow write: if false;
+        // Solo el panel admin, y solo para usuarios de prueba (las reales las otorgan las instituciones)
+        allow create: if adminMockWrite(uid);
+        allow delete: if isAdmin() && isMockUid(uid);
       }
 
       // Ficha de emergencia (datos sensibles de salud): users/{uid}/private/emergency
@@ -181,7 +199,11 @@ service cloud.firestore {
         && !(exists(userPath(request.auth.uid)) && ('rocketId' in get(userPath(request.auth.uid)).data))
         // …y en el mismo lote lo escribe en su perfil
         && getAfter(userPath(request.auth.uid)).data.get('rocketId', '') == code;
-      allow update, delete: if false;
+      // Panel admin: rocketIds de usuarios de prueba
+      allow create: if code.matches('^[BCDFGHJKLMNPQRSTVWXYZ][AEIOU]-[0-9]{4}$')
+        && adminMockWrite(request.resource.data.uid);
+      allow delete: if isAdmin() && (resource == null || isMockUid(resource.data.uid));
+      allow update: if false;
     }
 
     // Perfil público: nombre, avatar, rocketId y conocimientos.
@@ -209,6 +231,9 @@ service cloud.firestore {
         && request.resource.data.skills.categories is list && request.resource.data.skills.categories.size() <= 10
         && request.resource.data.skills.certifications is list && request.resource.data.skills.certifications.size() <= 20;
       allow delete: if isOwner(uid);
+      // Panel admin: perfiles de usuarios de prueba
+      allow create: if adminMockWrite(uid) && request.resource.data.uid == uid;
+      allow delete: if isAdmin() && isMockUid(uid);
     }
 
     // Índice de búsqueda por correo: emailIndex/{sha256(correo en minúsculas)} → { uid }.
@@ -239,6 +264,22 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['uid'])
         && request.resource.data.uid == request.auth.uid;
       allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      // Panel admin: correos (ficticios) de usuarios de prueba
+      allow create: if adminMockWrite(request.resource.data.uid);
+      allow delete: if isAdmin() && (resource == null || isMockUid(resource.data.uid));
+    }
+
+    // Registro de datos de prueba (también lo usan los scripts de scripts/mock)
+    match /_mock/registry {
+      allow read, write: if isAdmin();
+    }
+
+    // Configuración visible para toda la app; solo la administración la cambia
+    match /config/app {
+      allow get: if true;
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['demoCourses', 'updatedAt'])
+        && request.resource.data.demoCourses is bool;
     }
 
     // ---------- Eventos ----------
