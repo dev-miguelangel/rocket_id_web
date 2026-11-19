@@ -9,12 +9,20 @@ import { isPast, type EventDoc, type Participant } from './schema'
 
 type Tab = 'mine' | 'explore'
 
+// Último resultado de cada lista: al volver a la pestaña se muestra al instante y se refresca en segundo plano
+const cache: { uid?: string; mine?: { event: EventDoc; me: Participant }[]; explore?: EventDoc[]; tab?: Tab } = {}
+
 export function EventsPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('mine')
-  const [mine, setMine] = useState<{ event: EventDoc; me: Participant }[] | null>(null)
-  const [publicEvents, setPublicEvents] = useState<EventDoc[] | null>(null)
+  const sameUser = cache.uid === user?.uid
+  const [tab, setTabState] = useState<Tab>(() => (sameUser && cache.tab) || 'mine')
+  const [mine, setMine] = useState<{ event: EventDoc; me: Participant }[] | null>(() => (sameUser && cache.mine) || null)
+  const [publicEvents, setPublicEvents] = useState<EventDoc[] | null>(() => cache.explore ?? null)
+  const setTab = (t: Tab) => {
+    cache.tab = t
+    setTabState(t)
+  }
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<{ mine?: boolean; explore?: boolean }>({})
   const [reload, setReload] = useState(0)
@@ -28,6 +36,8 @@ export function EventsPage() {
     let alive = true
     withRetry(() => fetchMyEvents(user.uid))
       .then((r) => {
+        cache.uid = user.uid
+        cache.mine = r
         if (!alive) return
         setMine(r)
         setError((e) => ({ ...e, mine: false }))
@@ -44,11 +54,12 @@ export function EventsPage() {
     }
   }, [user, reload])
 
+  // Los públicos se cargan junto con los propios, así cambiar a "Explorar" es inmediato
   useEffect(() => {
-    if (tab !== 'explore') return
     let alive = true
     withRetry(fetchPublicEvents)
       .then((r) => {
+        cache.explore = r
         if (!alive) return
         setPublicEvents(r)
         setError((e) => ({ ...e, explore: false }))
@@ -63,7 +74,7 @@ export function EventsPage() {
     return () => {
       alive = false
     }
-  }, [tab, reload])
+  }, [reload])
 
   const upcoming = (mine ?? []).filter((r) => !isPast(r.event) && r.me.status !== 'declined')
   const past = (mine ?? []).filter((r) => isPast(r.event) || r.me.status === 'declined')

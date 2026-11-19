@@ -4,7 +4,7 @@ import { firstName } from '../../lib/names'
 import { useAuth } from '../auth/AuthProvider'
 import { addContact, removeContact } from './contactsApi'
 import { PublicProfileCard } from './PublicProfileCard'
-import { getPublicProfile, type SearchResult } from './publicProfile'
+import { getPublicProfile, peekPublicProfile, type SearchResult } from './publicProfile'
 
 const primaryBtn =
   'flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-base font-semibold text-white transition active:bg-primary-dark disabled:opacity-50'
@@ -23,13 +23,13 @@ interface Props {
 export function ProfileSheet({ uid, inCordada, onClose, onToast }: Props) {
   const { user } = useAuth()
   const [shownUid, setShownUid] = useState(uid)
-  const [result, setResult] = useState<SearchResult | null | undefined>(undefined)
+  const [result, setResult] = useState<SearchResult | null | undefined>(() => (uid ? peekPublicProfile(uid) : undefined))
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
 
   if (uid && uid !== shownUid) {
     setShownUid(uid)
-    setResult(undefined)
+    setResult(peekPublicProfile(uid))
     setConfirming(false)
   }
 
@@ -38,7 +38,8 @@ export function ProfileSheet({ uid, inCordada, onClose, onToast }: Props) {
     let alive = true
     getPublicProfile(uid)
       .then((r) => alive && setResult(r))
-      .catch(() => alive && setResult(null))
+      // Sin conexión: si ya teníamos el perfil, se mantiene
+      .catch(() => alive && setResult((r) => r ?? null))
     return () => {
       alive = false
     }

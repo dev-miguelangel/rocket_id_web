@@ -105,11 +105,25 @@ function parsePublic(uid: string, raw: Record<string, unknown>): PublicProfile {
   }
 }
 
+// Perfiles ya cargados en esta sesión: se muestran al instante y se actualizan en segundo plano
+const profileCache = new Map<string, SearchResult>()
+
+/** Último perfil cargado de esta persona (si lo hay), para mostrarlo sin esperar */
+export const peekPublicProfile = (uid: string) => profileCache.get(uid)
+
 export async function getPublicProfile(uid: string): Promise<SearchResult | null> {
-  const snap = await getDoc(publicRef(uid))
-  if (!snap.exists()) return null
-  const v = await getDoc(doc(db, 'users', uid, 'private', 'verifications')).catch(() => null)
-  return { profile: parsePublic(uid, snap.data()), verifications: parseVerifications(v?.data()) }
+  // Perfil y verificaciones a la vez (antes era uno después del otro)
+  const [snap, v] = await Promise.all([
+    getDoc(publicRef(uid)),
+    getDoc(doc(db, 'users', uid, 'private', 'verifications')).catch(() => null),
+  ])
+  if (!snap.exists()) {
+    profileCache.delete(uid)
+    return null
+  }
+  const r = { profile: parsePublic(uid, snap.data()), verifications: parseVerifications(v?.data()) }
+  profileCache.set(uid, r)
+  return r
 }
 
 /** Busca por correo exacto o por rocketId. Lanza 'format' si el texto no es ninguno de los dos. */
