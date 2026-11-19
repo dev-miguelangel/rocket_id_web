@@ -2,7 +2,6 @@ import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router'
 import './index.css'
-import { SplashScreen } from './components/SplashScreen'
 import { StatusBarScrim } from './components/StatusBarScrim'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { useTheme } from './lib/theme'
@@ -38,15 +37,6 @@ const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
-      // Admin: página independiente (sin la navegación de la app), requiere sesión
-      {
-        path: 'admin',
-        element: (
-          <Suspense fallback={<SplashScreen />}>
-            <AdminPage />
-          </Suspense>
-        ),
-      },
       {
         element: <DashboardLayout />,
         children: [
@@ -57,6 +47,15 @@ const router = createBrowserRouter([
           { path: 'perfil/:rocketId', element: <ProfileLinkPage /> },
           { path: 'eventos', element: <EventsPage /> },
           { path: 'e/:eventId', element: <EventDetailPage /> },
+          // Administración: solo la cuenta admin (se abre desde el menú del avatar)
+          {
+            path: 'admin',
+            element: (
+              <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-line/60" />}>
+                <AdminPage />
+              </Suspense>
+            ),
+          },
         ],
       },
     ],

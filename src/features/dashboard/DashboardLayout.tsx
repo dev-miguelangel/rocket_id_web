@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { RocketIdBadge } from '../../components/RocketIdBadge'
 import { BottomSheet } from '../../components/Sheet'
 import { PrivacySettings } from '../contacts/PrivacySettings'
@@ -11,6 +11,7 @@ import { toTitleCaseName } from '../../lib/names'
 import { useRocketId } from '../auth/useRocketId'
 import { useTheme, type ThemePreference } from '../../lib/theme'
 import { useAuth } from '../auth/AuthProvider'
+import { useIsAdmin } from '../admin/useIsAdmin'
 
 const tabs = [
   { to: '/', label: 'Inicio', icon: HomeIcon, end: true },
@@ -34,7 +35,7 @@ export function DashboardLayout() {
     <div className="flex min-h-dvh flex-col bg-surface">
       <header className="pt-safe sticky top-0 z-20 border-b border-line/70 bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/perfil/') ? 'Perfil' : pathname.startsWith('/e/') ? 'Evento' : 'rocketId')}</h1>
+          <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/perfil/') ? 'Perfil' : pathname.startsWith('/e/') ? 'Evento' : pathname === '/admin' ? 'Administración' : 'rocketId')}</h1>
           <div className="flex items-center gap-1">
             <NotificationsButton />
             <UserMenu />
@@ -90,6 +91,8 @@ function UserMenu() {
   const { user, signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const [sheet, setSheet] = useState<'share' | 'privacy' | null>(null)
+  const isAdmin = useIsAdmin()
+  const navigate = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const closeSheet = useCallback(() => setSheet(null), [])
   const openSheet = (s: 'share' | 'privacy') => {
@@ -140,6 +143,18 @@ function UserMenu() {
               }}
             />
           </div>
+          {isAdmin && (
+            <div className="border-t border-line py-1">
+              <MenuItem
+                icon={<span className="text-lg leading-none">📊</span>}
+                label="Panel de administración"
+                onClick={() => {
+                  setOpen(false)
+                  navigate('/admin')
+                }}
+              />
+            </div>
+          )}
           <ThemeSwitcher />
           <button
             type="button"

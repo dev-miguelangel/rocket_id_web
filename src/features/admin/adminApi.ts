@@ -13,16 +13,6 @@ import {
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 
-/** sha256 del correo de administración (las reglas de Firestore validan lo mismo) */
-const ADMIN_EMAIL_HASH = '4505f00c6a3f199d9f1a7b6a32b492291441f41fd8510826e44a76c0c306c6e4'
-
-export async function isAdminEmail(email: string | null | undefined) {
-  if (!email) return false
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()))
-  const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
-  return hex === ADMIN_EMAIL_HASH
-}
-
 /** Fecha YYYY-MM-DD en hora de Chile (la misma clave que usa el contador de visitas) */
 export const chileDay = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(d)
 
