@@ -1,7 +1,8 @@
-import { StrictMode } from 'react'
+import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router'
 import './index.css'
+import { SplashScreen } from './components/SplashScreen'
 import { StatusBarScrim } from './components/StatusBarScrim'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { useTheme } from './lib/theme'
@@ -20,6 +21,9 @@ import { EventsPage } from './features/events/EventsPage'
 import { HomePage } from './features/dashboard/HomePage'
 import { MyDataPage } from './features/dashboard/MyDataPage'
 
+// Panel de administración: se carga aparte (solo lo usa una cuenta)
+const AdminPage = lazy(() => import('./features/admin/AdminPage').then((m) => ({ default: m.AdminPage })))
+
 const router = createBrowserRouter([
   // Perfil público de deportista: se ve sin sesión, como página independiente
   { path: '/p/:rocketId', element: <PublicProfilePage /> },
@@ -34,6 +38,15 @@ const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
+      // Admin: página independiente (sin la navegación de la app), requiere sesión
+      {
+        path: 'admin',
+        element: (
+          <Suspense fallback={<SplashScreen />}>
+            <AdminPage />
+          </Suspense>
+        ),
+      },
       {
         element: <DashboardLayout />,
         children: [

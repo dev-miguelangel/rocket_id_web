@@ -2,6 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Administración: solo la cuenta cuyo correo verificado tiene este hash sha256 (el correo no queda en texto)
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && hashing.sha256(request.auth.token.email.lower()).toHexString().lower() == '4505f00c6a3f199d9f1a7b6a32b492291441f41fd8510826e44a76c0c306c6e4';
+    }
+
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
@@ -35,6 +42,8 @@ service cloud.firestore {
     // Perfil e identificación: users/{uid}
     match /users/{uid} {
       allow read: if isOwner(uid);
+      // Métricas del panel admin (conteos agregados)
+      allow list: if isAdmin();
       allow create, update: if isOwner(uid)
         && request.resource.data.keys().hasOnly([
           'displayName', 'email', 'photoURL', 'createdAt', 'lastLoginAt', 'updatedAt',
@@ -211,6 +220,15 @@ service cloud.firestore {
         && request.resource.data.visits == resource.data.visits + 1;
     }
 
+    // Visitas por día (fecha en hora de Chile): mismas reglas de suma; solo administración las lista
+    match /stats/landing/days/{day} {
+      allow list: if isAdmin();
+      allow create: if day.matches('^20[0-9]{2}-[01][0-9]-[0-3][0-9]$')
+        && request.resource.data.keys().hasOnly(['visits']) && request.resource.data.visits == 1;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['visits'])
+        && request.resource.data.visits == resource.data.visits + 1;
+    }
+
     // El correo nunca se guarda en texto; solo encuentra a alguien quien conoce el correo exacto.
     // Solo puedes indexar TU correo verificado (el hash se recalcula aquí).
     match /emailIndex/{hash} {
@@ -277,12 +295,18 @@ service cloud.firestore {
     // Cualquier participante puede leer sus propias filas en todos los eventos (para "Mis eventos")
     match /{path=**}/participants/{pid} {
       allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow list: if isAdmin();
+    }
+
+    // Métricas del panel admin: total de vínculos de cordada
+    match /{path=**}/contacts/{cid} {
+      allow list: if isAdmin();
     }
 
     match /events/{eid} {
       // get: cualquiera con el enlace (id no adivinable). list: solo públicos.
       allow get: if request.auth != null;
-      allow list: if request.auth != null && resource.data.visibility == 'public' && request.query.limit <= 50;
+      allow list: if (request.auth != null && resource.data.visibility == 'public' && request.query.limit <= 50) || isAdmin();
       allow create: if request.auth != null
         && request.resource.data.organizerUid == request.auth.uid
         && request.resource.data.status == 'published'
@@ -398,6 +422,7 @@ service cloud.firestore {
     // el estado (sent → seen → accepted/rejected) lo cambiará la institución desde su app.
     match /applications/{appId} {
       allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow list: if isAdmin();
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && appId == request.auth.uid + '_' + request.resource.data.courseId

@@ -24,12 +24,10 @@ export function useVisitCounter() {
     })()
     ;(async () => {
       if (!counted) {
-        try {
-          await updateDoc(ref, { visits: increment(1) })
-        } catch {
-          // Primera visita de la historia: el documento aún no existe
-          await setDoc(ref, { visits: 1 }).catch(() => {})
-        }
+        // Total y visitas del día (hora de Chile), para el panel de administración
+        const day = doc(db, 'stats', 'landing', 'days', new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date()))
+        const bump = (r: typeof ref) => updateDoc(r, { visits: increment(1) }).catch(() => setDoc(r, { visits: 1 }).catch(() => {}))
+        await Promise.all([bump(ref), bump(day)])
         try {
           sessionStorage.setItem(KEY, '1')
         } catch {
