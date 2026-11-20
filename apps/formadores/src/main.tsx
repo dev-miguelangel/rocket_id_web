@@ -6,12 +6,13 @@ import { LoginPage } from './auth/LoginPage'
 import { AppLayout } from './layout/AppLayout'
 import { HomePage } from './pages/HomePage'
 import { ApplicationsPage } from './applications/ApplicationsPage'
+import { VerificationsPage } from './verifications/VerificationsPage'
 import { CourseEditorPage } from './courses/CourseEditorPage'
 import { CoursesPage } from './courses/CoursesPage'
 import { MyProvidersProvider } from './providers/MyProviders'
 import { ProviderFormPage } from './providers/ProviderFormPage'
 import { SoonPage } from './pages/SoonPage'
-import { BadgeIcon, TeamIcon } from './ui/icons'
+import { TeamIcon } from './ui/icons'
 import { UpdatePrompt } from './ui/UpdatePrompt'
 import './index.css'
 
@@ -50,12 +51,7 @@ const router = createBrowserRouter([
       { path: 'cursos/nuevo', element: <CourseEditorPage /> },
       { path: 'cursos/:id', element: <CourseEditorPage /> },
       { path: 'postulaciones', element: <ApplicationsPage /> },
-      {
-        path: 'verificaciones',
-        element: (
-          <SoonPage icon={BadgeIcon} title="Verificaciones" text="Confirma las certificaciones que emitiste para que lleven la insignia ✓ con tu nombre." />
-        ),
-      },
+      { path: 'verificaciones', element: <VerificationsPage /> },
       {
         path: 'equipo',
         element: (

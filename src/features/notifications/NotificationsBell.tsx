@@ -81,6 +81,19 @@ const T: Record<NotificationType, { icon: string; tone: string; text: (n: AppNot
     text: (n) => `${n.actorName} no aceptó tu postulación a “${n.eventTitle}”`,
     context: 'Toca para ver el curso',
   },
+  // Verificación de certificaciones (eventId = id de la certificación, eventTitle = su nombre, actorName = formador)
+  verification_approved: {
+    icon: '✅',
+    tone: 'bg-blue-100 dark:bg-blue-500/15',
+    text: (n) => `${n.actorName} verificó tu certificación “${n.eventTitle}”`,
+    context: 'Ahora aparece con la insignia ✓ en tu perfil',
+  },
+  verification_rejected: {
+    icon: '📋',
+    tone: 'bg-zinc-200 dark:bg-zinc-500/20',
+    text: (n) => `${n.actorName} no verificó tu certificación “${n.eventTitle}”`,
+    context: 'Revisa los datos o pídela a otro formador',
+  },
   sensitive_view: {
     icon: '👁️',
     tone: 'bg-violet-100 dark:bg-violet-500/15',
@@ -123,7 +136,13 @@ export function NotificationsSheet({ open, onClose, items }: { open: boolean; on
     if (!user) return
     if (!n.read) markRead(user.uid, n.id).catch(() => {})
     onClose()
-    navigate(n.type.startsWith('application_') ? `/cursos?curso=${encodeURIComponent(n.eventId)}` : `/e/${n.eventId}`)
+    navigate(
+      n.type.startsWith('application_')
+        ? `/cursos?curso=${encodeURIComponent(n.eventId)}`
+        : n.type.startsWith('verification_')
+          ? '/mis-datos'
+          : `/e/${n.eventId}`,
+    )
   }
 
   return (
@@ -148,8 +167,8 @@ export function NotificationsSheet({ open, onClose, items }: { open: boolean; on
           <p className="text-4xl" aria-hidden="true">🔔</p>
           <p className="mt-3 font-semibold text-fg">Sin notificaciones</p>
           <p className="mt-1 text-sm text-muted">
-            Aquí verás invitaciones a eventos, cambios, quién confirmó o no podrá ir, cuándo un organizador ve tu ficha de emergencia y las
-            respuestas a tus postulaciones.
+            Aquí verás invitaciones a eventos, cambios, quién confirmó o no podrá ir, cuándo un organizador ve tu ficha de emergencia, las
+            respuestas a tus postulaciones y las verificaciones de tus certificaciones.
           </p>
         </div>
       ) : (

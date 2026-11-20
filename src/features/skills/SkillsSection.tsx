@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Field, Segmented, inputClass } from '../../components/form'
 import { SwipeRow } from '../../components/SwipeRow'
 import { VerifiedBadge } from '../../components/VerifiedBadge'
+import { requestMatches, type VerificationRequest } from '../../../shared/verificationsApi'
 import {
   CERT_STATUSES,
   ISSUER_SUGGESTIONS,
@@ -53,14 +54,20 @@ export function SkillsReadSection({
   onEdit,
   onEditCert,
   onDeleteCert,
+  requests = {},
+  onRequestVerification,
 }: {
   data: SkillsData
   verifications: Verifications
   onEdit: () => void
   onEditCert?: (id: string) => void
   onDeleteCert?: (id: string) => void
+  /** Solicitudes de verificación a formadores, por id de certificación */
+  requests?: Record<string, VerificationRequest>
+  onRequestVerification?: () => void
 }) {
   const anyVerified = data.certifications.some((c) => verificationFor(c, verifications))
+  const canRequest = !!onRequestVerification && data.certifications.some((c) => c.name.trim() && !verificationFor(c, verifications))
   return (
     <section>
       <div className="mb-1.5 flex items-end justify-between px-4">
@@ -98,6 +105,8 @@ export function SkillsReadSection({
               {data.certifications.map((c) => {
                 const stale = c.status === 'active' && isPastExpiry(c.expiresAt)
                 const v = verificationFor(c, verifications)
+                // Solicitud vigente (si editó la certificación después de pedirla, ya no aplica)
+                const r = !v && requests[c.id] && requestMatches(requests[c.id], c) ? requests[c.id] : null
                 return (
                   <li key={c.id}>
                     <SwipeRow
@@ -116,6 +125,14 @@ export function SkillsReadSection({
                         </span>
                         <span className="block text-sm break-words text-muted">{certSubtitle(c)}</span>
                         {v && <span className="mt-0.5 block text-xs font-medium text-blue-600 dark:text-blue-400">{verifiedText(v)}</span>}
+                        {r?.status === 'pending' && (
+                          <span className="mt-0.5 block text-xs font-medium text-sky-700 dark:text-sky-300">⏳ Verificación pedida a {r.providerName}</span>
+                        )}
+                        {r?.status === 'rejected' && (
+                          <span className="mt-0.5 block text-xs text-red-700 dark:text-red-300">
+                            {r.providerName} no la verificó{r.note ? `: ${r.note}` : ''}
+                          </span>
+                        )}
                         {stale && <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">⚠️ Revisa la vigencia</span>}
                       </span>
                       <StatusBadge status={c.status} />
@@ -125,12 +142,22 @@ export function SkillsReadSection({
                 )
               })}
             </ul>
-            <p className="flex items-center gap-1.5 border-t border-line px-4 py-2.5 text-xs text-muted">
-              <VerifiedBadge className="size-3.5" />
-              {anyVerified
-                ? 'Verificado por la institución emisora.'
-                : 'Las instituciones podrán verificar tus certificaciones próximamente.'}
-            </p>
+            {canRequest ? (
+              <button
+                type="button"
+                onClick={onRequestVerification}
+                className="flex min-h-12 w-full items-center gap-2 border-t border-line px-4 py-2.5 text-left text-sm font-medium text-primary-text active:bg-line/60"
+              >
+                <VerifiedBadge className="size-4 shrink-0" />
+                <span className="flex-1">Pedir verificación al formador que la emitió</span>
+                <span aria-hidden="true">›</span>
+              </button>
+            ) : (
+              <p className="flex items-center gap-1.5 border-t border-line px-4 py-2.5 text-xs text-muted">
+                <VerifiedBadge className="size-3.5" />
+                {anyVerified ? 'Verificado por la institución emisora.' : 'Las instituciones pueden verificar tus certificaciones.'}
+              </p>
+            )}
           </>
         ) : (
           <button type="button" onClick={onEdit} className="block w-full px-4 py-3 text-left active:bg-line/60">

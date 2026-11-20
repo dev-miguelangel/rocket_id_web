@@ -91,6 +91,8 @@ export type NotificationType =
   | 'emergency_alert'
   | 'application_accepted'
   | 'application_rejected'
+  | 'verification_approved'
+  | 'verification_rejected'
 
 type Actor = { uid: string; displayName: string }
 

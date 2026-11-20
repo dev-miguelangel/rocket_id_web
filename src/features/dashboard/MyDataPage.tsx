@@ -15,6 +15,8 @@ import { ContactForm, HealthForm, IdentityForm, ReadSection, SECTIONS, rowsFor, 
 import { SKILLS_TITLE, SkillsForm, SkillsReadSection } from '../skills/SkillsSection'
 import { emptySkills, hasSkillsErrors, validateSkills, type SkillsData, type SkillsErrors, type Verifications } from '../skills/schema'
 import { saveSkills, subscribeSkills, subscribeVerifications } from '../skills/skillsApi'
+import { VerificationRequestSheet } from '../skills/VerificationRequestSheet'
+import { subscribeMyVerificationRequests, type VerificationRequest } from '../../../shared/verificationsApi'
 
 const FORMS = { identity: IdentityForm, contact: ContactForm, health: HealthForm }
 
@@ -24,6 +26,8 @@ export function MyDataPage() {
   const [profile, setProfile] = useState<ProfileForm | null>(null)
   const [skills, setSkills] = useState<SkillsData | null>(null)
   const [verifications, setVerifications] = useState<Verifications>({})
+  const [requests, setRequests] = useState<Record<string, VerificationRequest>>({})
+  const [verifyOpen, setVerifyOpen] = useState(false)
   const [skillsDraft, setSkillsDraft] = useState<SkillsData>(emptySkills)
   const [skillsErrors, setSkillsErrors] = useState<SkillsErrors>({ certs: {} })
   const [editing, setEditing] = useState<SectionId | 'skills' | null>(null)
@@ -52,6 +56,11 @@ export function MyDataPage() {
   useEffect(() => {
     if (!user) return
     return subscribeVerifications(user.uid, setVerifications)
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    return subscribeMyVerificationRequests(user.uid, setRequests)
   }, [user])
 
   const section = SECTIONS.find((s) => s.id === editing)
@@ -227,6 +236,26 @@ export function MyDataPage() {
         onEdit={() => openEditor('skills')}
         onEditCert={(id) => openEditor('skills', id)}
         onDeleteCert={deleteCert}
+        requests={requests}
+        onRequestVerification={() => setVerifyOpen(true)}
+      />
+
+      <VerificationRequestSheet
+        open={verifyOpen}
+        onClose={() => setVerifyOpen(false)}
+        onDone={(text) => {
+          setVerifyOpen(false)
+          setToast(text)
+        }}
+        certs={skills?.hasCertifications === 'yes' ? skills.certifications : []}
+        verifications={verifications}
+        requests={requests}
+        applicant={{
+          fullName: profile.fullName || user?.displayName || '',
+          rocketId: rocketId ?? '',
+          docType: profile.docType,
+          docNumber: profile.docNumber,
+        }}
       />
 
       <p className="px-4 text-center text-xs text-subtle">🔒 Solo tú puedes ver estos datos.</p>

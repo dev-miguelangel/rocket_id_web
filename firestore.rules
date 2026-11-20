@@ -123,6 +123,14 @@ service cloud.firestore {
               && canManageApplications(getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.providerId)
               && request.resource.data.actorName
                 == get(providerPath(getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.providerId)).data.name)
+            // Formador → persona: verificó o rechazó una certificación (eventId = id de la certificación)
+            || (request.resource.data.type in ['verification_approved', 'verification_rejected']
+              && getAfter(verificationRequestPath(uid + '_' + request.resource.data.eventId)).data.uid == uid
+              && getAfter(verificationRequestPath(uid + '_' + request.resource.data.eventId)).data.status
+                == (request.resource.data.type == 'verification_approved' ? 'approved' : 'rejected')
+              && canVerify(getAfter(verificationRequestPath(uid + '_' + request.resource.data.eventId)).data.providerId)
+              && request.resource.data.actorName
+                == getAfter(verificationRequestPath(uid + '_' + request.resource.data.eventId)).data.providerName)
             // …y alerta al organizador y al equipo de seguridad
             || (request.resource.data.type == 'emergency_alert'
               && isConfirmedParticipant(request.resource.data.eventId)
@@ -169,6 +177,8 @@ service cloud.firestore {
         // Solo el panel admin, y solo para usuarios de prueba (las reales las otorgan las instituciones)
         allow create: if adminMockWrite(uid);
         allow delete: if isAdmin() && isMockUid(uid);
+        // Un formador verifica una certificación: solo esa entrada, copiando la solicitud aprobada en el mismo lote
+        allow create, update: if providerVerifies(uid);
       }
 
       // Ficha de emergencia (datos sensibles de salud): users/{uid}/private/emergency
@@ -720,6 +730,85 @@ service cloud.firestore {
         && request.resource.data.reviewedBy == request.auth.uid
         && request.resource.data.reviewedAt == request.time;
       allow delete: if false;
+    }
+
+    // ---------- Verificación de certificaciones (ver iadocs/formadores.md, 3.7) ----------
+    // verificationRequests/{uid}_{certId}: la persona pide a un formador aprobado que verifique una certificación.
+    // Cualquier miembro del formador decide (decisión 5). Al aprobar, escribe la verificación en
+    // users/{uid}/private/verifications (la que usan las insignias) en el mismo lote.
+    function verificationRequestPath(rid) {
+      return /databases/$(database)/documents/verificationRequests/$(rid);
+    }
+    function canVerify(pid) {
+      return request.auth != null
+        && pid is string
+        && exists(memberPath(pid, request.auth.uid))
+        && get(providerPath(pid)).data.status == 'approved';
+    }
+    function validVerificationRequest(rid, d) {
+      return d.keys().hasOnly(['uid', 'certId', 'providerId', 'providerName', 'category', 'snapshot', 'applicant', 'status', 'consent', 'createdAt'])
+        && d.uid == request.auth.uid
+        && d.certId is string && d.certId.size() > 0 && d.certId.size() <= 60
+        && rid == request.auth.uid + '_' + d.certId
+        && d.status == 'pending'
+        && d.providerId is string
+        && get(providerPath(d.providerId)).data.status == 'approved'
+        && d.providerName == get(providerPath(d.providerId)).data.name
+        && d.category is string && d.category.size() <= 30
+        && d.snapshot is map && d.snapshot.keys().hasOnly(['name', 'issuer', 'year', 'expiresAt'])
+        && d.snapshot.name is string && d.snapshot.name.size() > 0 && d.snapshot.name.size() <= 120
+        && d.snapshot.issuer is string && d.snapshot.issuer.size() <= 120
+        && d.snapshot.year is string && d.snapshot.year.size() <= 4
+        && d.snapshot.expiresAt is string && d.snapshot.expiresAt.size() <= 7
+        && d.applicant is map && d.applicant.keys().hasOnly(['fullName', 'rocketId', 'docType', 'docNumber'])
+        && d.applicant.fullName is string && d.applicant.fullName.size() <= 120
+        && optStr(d.applicant, 'rocketId', 10)
+        && optStr(d.applicant, 'docType', 20)
+        && optStr(d.applicant, 'docNumber', 30)
+        && d.consent is map && d.consent.keys().hasOnly(['version', 'acceptedAt'])
+        && d.consent.acceptedAt == request.time
+        && d.createdAt == request.time;
+    }
+    // Escritura de la verificación por el formador (users/{uid}/private/verifications)
+    function providerVerifies(uid) {
+      let cid = request.resource.data.get('lastCertId', '');
+      let req = getAfter(verificationRequestPath(uid + '_' + cid)).data;
+      let before = resource == null ? {} : resource.data.get('certs', {});
+      let entry = request.resource.data.certs[cid];
+      return request.auth != null
+        && cid is string && cid.size() > 0
+        && (resource == null
+          ? request.resource.data.keys().hasOnly(['certs', 'lastCertId'])
+          : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['certs', 'lastCertId']))
+        && request.resource.data.certs.diff(before).affectedKeys().hasOnly([cid])
+        && req.uid == uid
+        && req.status == 'approved'
+        && req.reviewedBy == request.auth.uid
+        && canVerify(req.providerId)
+        && entry.keys().hasOnly(['verifiedBy', 'providerId', 'verifiedAt', 'snapshot'])
+        && entry.verifiedBy == req.providerName
+        && entry.providerId == req.providerId
+        && entry.snapshot == req.snapshot
+        && entry.verifiedAt == request.time;
+    }
+
+    match /verificationRequests/{rid} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      // Formador: consulta con where providerId == su formador
+      allow read: if isProviderMember(resource.data.providerId);
+      allow list: if isAdmin();
+      allow create: if request.auth != null && validVerificationRequest(rid, request.resource.data);
+      // Pedirla de nuevo: a otro formador, con datos corregidos o tras un rechazo
+      allow update: if request.auth != null && resource.data.uid == request.auth.uid && validVerificationRequest(rid, request.resource.data);
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      // Formador: verifica o rechaza una solicitud pendiente
+      allow update: if canVerify(resource.data.providerId)
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note', 'reviewedAt', 'reviewedBy'])
+        && request.resource.data.status in ['approved', 'rejected']
+        && optStr(request.resource.data, 'note', 500)
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time;
     }
 
     // Todo lo demás denegado por defecto
