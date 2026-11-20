@@ -6,14 +6,17 @@ import {
   formatRut,
   hasProviderErrors,
   independentId,
+  MEMBER_ROLES,
   PROVIDER_KINDS,
   PROVIDER_STATUSES,
   validateProvider,
+  type MemberRole,
   type Provider,
   type ProviderForm,
   type ProviderStatus,
 } from '../../../shared/domain/providers'
 import { listAllProviders, makeIndependentProvider, reviewProvider } from '../../../shared/providersApi'
+import { invitePerson } from '../../../shared/teamsApi'
 import { HoldButton } from '../../components/HoldButton'
 import { Field, inputClass, Segmented, textareaClass } from '../../components/form'
 import { BottomSheet } from '../../components/Sheet'
@@ -400,6 +403,7 @@ function ReviewSheet({ provider: p, onClose, onDone }: { provider: Provider | nu
           <p className="px-1 text-xs text-subtle">
             Revisa que el nombre no suplante a otra institución o persona{p.kind === 'independent' ? ' y que la certificación sea vigente y verificable' : ''}.
           </p>
+          {p.kind === 'organization' && p.status === 'approved' && <AdminInvite key={p.id} provider={p} />}
         </div>
       )}
     </BottomSheet>
@@ -605,5 +609,123 @@ function MakeProviderSheet({ open, taken, onClose, onDone }: { open: boolean; ta
         </div>
       )}
     </BottomSheet>
+  )
+}
+
+// ---------- Vincular a una persona con una organización (le llega como invitación) ----------
+
+function AdminInvite({ provider }: { provider: Provider }) {
+  const { user } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [users, setUsers] = useState<AdminUser[] | null>(null)
+  const [q, setQ] = useState('')
+  const [role, setRole] = useState<MemberRole>('instructor')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => {
+    if (!open || users) return
+    let alive = true
+    fetchUsers()
+      .then((r) => alive && setUsers(r.filter((u) => !u.isMock)))
+      .catch(() => alive && setUsers([]))
+    return () => {
+      alive = false
+    }
+  }, [open, users])
+
+  const term = normalizeText(q)
+  const matches = term
+    ? (users ?? [])
+        .filter(
+          (u) => normalizeText(u.displayName).includes(term) || normalizeText(u.email).includes(term) || u.rocketId.toLowerCase().includes(q.toLowerCase()),
+        )
+        .slice(0, 6)
+    : []
+
+  const send = async (u: AdminUser) => {
+    if (!user) return
+    setBusy(true)
+    setMsg(null)
+    try {
+      await invitePerson(provider.id, provider.name, { uid: user.uid, name: 'Administración de rocketId' }, u.uid, role)
+      setMsg({ ok: true, text: `Invitamos a ${u.displayName || 'la persona'} como ${MEMBER_ROLES[role].label.toLowerCase()}. Debe aceptar desde su app.` })
+      setQ('')
+    } catch (e) {
+      console.error('admin invite', e)
+      setMsg({ ok: false, text: 'No se pudo invitar. Puede que ya sea parte del equipo o tenga una invitación pendiente.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open)
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="h-11 w-full rounded-xl border border-line text-base font-medium text-fg active:bg-line/60">
+        ＋ Vincular a una persona con esta organización
+      </button>
+    )
+  return (
+    <section aria-label="Vincular a una persona" className="space-y-3 rounded-2xl border border-line p-4">
+      <p className="text-sm text-muted">Le llegará como invitación: queda en el equipo cuando la acepta.</p>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <label htmlFor="adm-inv-q" className="sr-only">
+          Buscar persona
+        </label>
+        <input
+          id="adm-inv-q"
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Nombre, correo o rocketId"
+          className={inputClass.replace('mt-1 ', '')}
+        />
+        <label htmlFor="adm-inv-role" className="sr-only">
+          Rol
+        </label>
+        <select
+          id="adm-inv-role"
+          value={role}
+          onChange={(e) => setRole(e.target.value as MemberRole)}
+          className="h-12 rounded-xl border border-field bg-card px-3 text-base text-fg"
+        >
+          {(Object.keys(MEMBER_ROLES) as MemberRole[]).map((r) => (
+            <option key={r} value={r}>
+              {MEMBER_ROLES[r].label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {users === null ? (
+        <p className="text-sm text-muted">Cargando usuarios…</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {matches.map((u) => (
+            <li key={u.uid} className="flex items-center gap-3 py-2">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-fg">{u.displayName || 'Sin nombre'}</span>
+                <span className="block truncate text-sm text-muted">
+                  {u.rocketId} · {u.email}
+                </span>
+              </span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => send(u)}
+                className="h-11 shrink-0 rounded-lg bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                Invitar
+              </button>
+            </li>
+          ))}
+          {q && matches.length === 0 && <li className="py-2 text-sm text-muted">Sin resultados.</li>}
+        </ul>
+      )}
+      {msg && (
+        <p role="status" className={`text-sm ${msg.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+          {msg.text}
+        </p>
+      )}
+    </section>
   )
 }

@@ -19,7 +19,16 @@ export async function setup() {
     projectId: PROJECT_ID,
     firestore: { rules: readFileSync(`${ROOT}firestore.rules`, 'utf8'), host, port: Number(port) },
   })
-  await env.clearFirestore()
+  // El emulador a veces rechaza la limpieza mientras cierra conexiones de la suite anterior: se reintenta
+  for (let i = 0; ; i++) {
+    try {
+      await env.clearFirestore()
+      break
+    } catch (e) {
+      if (i >= 4) throw e
+      await new Promise((r) => setTimeout(r, 500 * (i + 1)))
+    }
+  }
   let pass = 0
   let fail = 0
   const t = async (name, fn) => {

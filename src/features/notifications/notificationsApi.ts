@@ -31,6 +31,7 @@ const TYPES: NotificationType[] = [
   'application_rejected',
   'verification_approved',
   'verification_rejected',
+  'provider_invite',
 ]
 
 const col = (uid: string) => collection(db, 'users', uid, 'notifications')

@@ -12,6 +12,7 @@ import {
 } from '../../../../shared/domain/providers'
 import { withdrawProvider, type Membership } from '../../../../shared/providersApi'
 import { useAuth } from '../auth/AuthProvider'
+import { InvitesCard } from '../providers/InvitesCard'
 import { useMyProviders } from '../providers/MyProviders'
 import { Badge, dangerButton, primaryButton, secondaryButton } from '../ui/form'
 
@@ -49,6 +50,8 @@ export function HomePage() {
           ✓ Solicitud enviada. La administración de rocketId la revisará y verás aquí el resultado.
         </p>
       )}
+
+      <InvitesCard />
 
       {error ? (
         <p role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">

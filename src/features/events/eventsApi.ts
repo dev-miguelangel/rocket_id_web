@@ -93,6 +93,7 @@ export type NotificationType =
   | 'application_rejected'
   | 'verification_approved'
   | 'verification_rejected'
+  | 'provider_invite'
 
 type Actor = { uid: string; displayName: string }
 

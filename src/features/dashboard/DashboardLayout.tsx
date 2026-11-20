@@ -12,7 +12,7 @@ import { useRocketId } from '../auth/useRocketId'
 import { useTheme, type ThemePreference } from '../../lib/theme'
 import { useAuth } from '../auth/AuthProvider'
 import { useIsAdmin } from '../admin/useIsAdmin'
-import { useTeachingProviders } from '../teaching/useTeaching'
+import { useTeaching } from '../teaching/useTeaching'
 
 const tabs = [
   { to: '/', label: 'Inicio', icon: HomeIcon, end: true },
@@ -93,7 +93,7 @@ function UserMenu() {
   const [open, setOpen] = useState(false)
   const [sheet, setSheet] = useState<'share' | 'privacy' | null>(null)
   const isAdmin = useIsAdmin()
-  const teaching = useTeachingProviders()
+  const teaching = useTeaching()
   const navigate = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const closeSheet = useCallback(() => setSheet(null), [])
@@ -145,11 +145,11 @@ function UserMenu() {
               }}
             />
           </div>
-          {!!teaching?.length && (
+          {(!!teaching.memberships?.length || teaching.invites.length > 0) && (
             <div className="border-t border-line py-1">
               <MenuItem
                 icon={<span className="text-lg leading-none">🎓</span>}
-                label="Cursos que dictas"
+                label={teaching.invites.length ? `Cursos que dictas · ${teaching.invites.length} ${teaching.invites.length === 1 ? 'invitación' : 'invitaciones'}` : 'Cursos que dictas'}
                 onClick={() => {
                   setOpen(false)
                   navigate('/dictas')

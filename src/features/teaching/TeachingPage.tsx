@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { ageFrom, decideApplication, markApplicationSeen, subscribeProviderApplications, type ProviderApplication } from '../../../shared/applicationsApi'
 import { FORMADORES_URL } from '../../../shared/urls'
@@ -9,11 +9,14 @@ import { useToast } from '../../components/Toast'
 import { useAuth } from '../auth/AuthProvider'
 import { ApplicationBadge } from '../courses/parts'
 import { categoryOf } from '../skills/schema'
-import { useTeachingProviders } from './useTeaching'
+import { MEMBER_ROLES } from '../../../shared/domain/providers'
+import { acceptInvite, declineInvite, subscribeInstructorApplications, type Invite } from '../../../shared/teamsApi'
+import { useTeaching } from './useTeaching'
 
 /** "🎓 Cursos que dictas": postulaciones a los cursos del formador, desde el celular */
 export function TeachingPage() {
-  const memberships = useTeachingProviders()
+  const { user } = useAuth()
+  const { memberships, invites } = useTeaching()
   const [params, setParams] = useSearchParams()
   const [chosen, setChosen] = useState<string | null>(null)
   const current = memberships?.find((m) => m.provider.id === chosen) ?? memberships?.[0] ?? null
@@ -23,10 +26,14 @@ export function TeachingPage() {
   const [openId, setOpenId] = useState<string | null>(null)
   const toast = useToast()
 
+  // Responsables y coordinación ven todas las postulaciones; un instructor, las de sus cursos asignados
+  const seesAll = current?.role === 'owner' || current?.role === 'manager'
+  const uid = user?.uid ?? null
   useEffect(() => {
-    if (!pid) return
-    return subscribeProviderApplications(pid, (list, e) => setState({ pid, list, error: !!e }))
-  }, [pid])
+    if (!pid || !uid) return
+    const cb = (list: ProviderApplication[] | null, e?: unknown) => setState({ pid, list, error: !!e })
+    return seesAll ? subscribeProviderApplications(pid, cb) : subscribeInstructorApplications(pid, uid, cb)
+  }, [pid, uid, seesAll])
 
   const list = state.pid === pid ? state.list : null
   const courses = useMemo(() => {
@@ -45,6 +52,7 @@ export function TeachingPage() {
   const open = (list ?? []).find((a) => a.id === openId) ?? null
 
   if (memberships === null) return <div className="h-64 animate-pulse rounded-2xl bg-line/60" aria-busy="true" />
+  if (!current && invites.length) return <Invites invites={invites} onDone={toast.show} toast={toast.node} />
   if (!current)
     return (
       <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
@@ -63,6 +71,7 @@ export function TeachingPage() {
 
   return (
     <div className="space-y-5">
+      {invites.length > 0 && <Invites invites={invites} onDone={toast.show} />}
       {memberships.length > 1 && (
         <Segmented
           label="Formador"
@@ -110,7 +119,9 @@ export function TeachingPage() {
         <>
           <div>
             <h2 className="text-xl font-bold text-fg">{current.provider.name}</h2>
-            <p className="text-sm text-muted">Postulaciones a tus cursos publicados.</p>
+            <p className="text-sm text-muted">
+              {seesAll ? 'Postulaciones a tus cursos publicados.' : `${MEMBER_ROLES.instructor.label}: postulaciones de los cursos que tienes asignados.`}
+            </p>
           </div>
           {current.provider.status === 'suspended' && (
             <p className="rounded-xl bg-zinc-100 p-3 text-sm text-zinc-900 dark:bg-zinc-500/15 dark:text-zinc-100">
@@ -365,5 +376,65 @@ function Row({ label, value, href }: { label: string; value: string; href?: stri
         )}
       </dd>
     </div>
+  )
+}
+
+/** Invitaciones a equipos de formadores */
+function Invites({ invites, onDone, toast }: { invites: Invite[]; onDone: (text: string) => void; toast?: ReactNode }) {
+  const { user } = useAuth()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  const act = async (i: Invite, accept: boolean) => {
+    if (!user) return
+    setBusy(i.providerId)
+    setFailed(false)
+    try {
+      if (accept) await acceptInvite(user.uid, i)
+      else await declineInvite(i)
+      onDone(accept ? `Ahora eres parte de ${i.providerName}` : 'Invitación rechazada')
+    } catch (e) {
+      console.error('invite', e)
+      setFailed(true)
+    } finally {
+      setBusy(null)
+    }
+  }
+  return (
+    <section aria-label="Invitaciones" className="space-y-2">
+      {invites.map((i) => (
+        <article key={i.providerId} className="rounded-2xl border border-primary/40 bg-primary/5 p-4">
+          <p className="text-base font-semibold text-fg">
+            {i.invitedByName || 'Alguien'} te invitó a {i.providerName}
+          </p>
+          <p className="mt-0.5 text-sm text-muted">
+            Rol: {MEMBER_ROLES[i.role].label}. {MEMBER_ROLES[i.role].description}.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => act(i, false)}
+              disabled={!!busy}
+              className="h-12 rounded-xl border border-line-strong text-base font-semibold text-fg active:bg-line/60 disabled:opacity-50"
+            >
+              Rechazar
+            </button>
+            <button
+              type="button"
+              onClick={() => act(i, true)}
+              disabled={!!busy}
+              className="h-12 rounded-xl bg-primary text-base font-semibold text-white active:bg-primary-dark disabled:opacity-50"
+            >
+              {busy === i.providerId ? 'Guardando…' : 'Aceptar'}
+            </button>
+          </div>
+        </article>
+      ))}
+      {failed && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          No se pudo completar. Revisa tu conexión e inténtalo de nuevo.
+        </p>
+      )}
+      {toast}
+    </section>
   )
 }

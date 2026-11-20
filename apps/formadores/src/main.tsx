@@ -7,12 +7,11 @@ import { AppLayout } from './layout/AppLayout'
 import { HomePage } from './pages/HomePage'
 import { ApplicationsPage } from './applications/ApplicationsPage'
 import { VerificationsPage } from './verifications/VerificationsPage'
+import { TeamPage } from './team/TeamPage'
 import { CourseEditorPage } from './courses/CourseEditorPage'
 import { CoursesPage } from './courses/CoursesPage'
 import { MyProvidersProvider } from './providers/MyProviders'
 import { ProviderFormPage } from './providers/ProviderFormPage'
-import { SoonPage } from './pages/SoonPage'
-import { TeamIcon } from './ui/icons'
 import { UpdatePrompt } from './ui/UpdatePrompt'
 import './index.css'
 
@@ -52,12 +51,7 @@ const router = createBrowserRouter([
       { path: 'cursos/:id', element: <CourseEditorPage /> },
       { path: 'postulaciones', element: <ApplicationsPage /> },
       { path: 'verificaciones', element: <VerificationsPage /> },
-      {
-        path: 'equipo',
-        element: (
-          <SoonPage icon={TeamIcon} title="Tu equipo" text="Invita a instructores y coordinación por su rocketId o correo, y define el rol de cada uno." />
-        ),
-      },
+      { path: 'equipo', element: <TeamPage /> },
       { path: '*', element: <HomePage /> },
     ],
   },

@@ -20,6 +20,7 @@ import { canPublish, createCourse, deleteCourse, newCourseId, setCourseStatus, s
 import type { Membership } from '../../../../shared/providersApi'
 import { useAuth } from '../auth/AuthProvider'
 import { useMyProviders } from '../providers/MyProviders'
+import { InstructorsCard } from './InstructorsCard'
 import { Badge, Card, dangerButton, Field, inputClass, primaryButton, secondaryButton, textareaClass } from '../ui/form'
 
 /** /cursos/nuevo?f={providerId} y /cursos/{id} */
@@ -323,6 +324,8 @@ function Editor({ membership, course }: { membership: Membership; course: Provid
             </div>
           </Card>
         </fieldset>
+
+        {course && p.kind === 'organization' && <InstructorsCard courseId={course.id} providerId={p.id} assigned={course.instructorUids} editable={editable} />}
 
         {msg && (
           <p

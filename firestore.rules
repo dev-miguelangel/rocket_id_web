@@ -120,9 +120,14 @@ service cloud.firestore {
               && getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.uid == uid
               && getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.status
                 == (request.resource.data.type == 'application_accepted' ? 'accepted' : 'rejected')
-              && canManageApplications(getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.providerId)
+              && canDecideApplication(getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data)
               && request.resource.data.actorName
                 == get(providerPath(getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.providerId)).data.name)
+            // Formador → persona invitada al equipo (eventId = id del formador)
+            || (request.resource.data.type == 'provider_invite'
+              && existsAfter(invitePath(request.resource.data.eventId, uid))
+              && getAfter(invitePath(request.resource.data.eventId, uid)).data.invitedBy == request.auth.uid
+              && request.resource.data.eventTitle == getAfter(invitePath(request.resource.data.eventId, uid)).data.providerName)
             // Formador → persona: verificó o rechazó una certificación (eventId = id de la certificación)
             || (request.resource.data.type in ['verification_approved', 'verification_rejected']
               && getAfter(verificationRequestPath(uid + '_' + request.resource.data.eventId)).data.uid == uid
@@ -489,6 +494,15 @@ service cloud.firestore {
     function isProviderMember(pid) {
       return request.auth != null && exists(memberPath(pid, request.auth.uid));
     }
+    // Responsable (owner) del formador: administra el equipo
+    function isProviderOwner(pid) {
+      return request.auth != null
+        && exists(memberPath(pid, request.auth.uid))
+        && get(memberPath(pid, request.auth.uid)).data.role == 'owner';
+    }
+    function invitePath(pid, uid) {
+      return /databases/$(database)/documents/providers/$(pid)/invites/$(uid);
+    }
     function validCredential(c) {
       return c is map
         && c.keys().hasOnly(['name', 'issuer', 'number', 'expiresAt', 'evidenceUrl'])
@@ -593,10 +607,52 @@ service cloud.firestore {
           && request.resource.data.role in ['owner', 'manager', 'instructor']
           && request.resource.data.addedBy == request.auth.uid
           && request.resource.data.since == request.time;
-        allow update: if false;
-        // Solo junto con el retiro de la solicitud, o la administración
-        allow delete: if isAdmin() || (isOwner(uid) && !existsAfter(providerPath(pid)));
+        // Aceptar una invitación: la propia persona crea su membresía con el rol invitado y borra la invitación
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['uid', 'role', 'addedBy', 'since'])
+          && request.resource.data.uid == uid
+          && exists(invitePath(pid, uid))
+          && request.resource.data.role == get(invitePath(pid, uid)).data.role
+          && request.resource.data.addedBy == get(invitePath(pid, uid)).data.invitedBy
+          && request.resource.data.since == request.time
+          && !existsAfter(invitePath(pid, uid))
+          && get(providerPath(pid)).data.status == 'approved';
+        // El responsable cambia el rol de otra persona del equipo
+        allow update: if isProviderOwner(pid)
+          && uid != request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role in ['owner', 'manager', 'instructor'];
+        // Retiro de la solicitud, la administración, el responsable quitando a otra persona,
+        // o alguien que sale del equipo (un responsable no puede salir: primero debe nombrar a otro)
+        allow delete: if isAdmin()
+          || (isOwner(uid) && !existsAfter(providerPath(pid)))
+          || (isProviderOwner(pid) && uid != request.auth.uid)
+          || (isOwner(uid) && resource.data.role != 'owner');
       }
+
+      // Invitaciones: providers/{pid}/invites/{uid} (solo organizaciones aprobadas)
+      match /invites/{uid} {
+        allow get: if isOwner(uid) || isAdmin() || isProviderOwner(pid);
+        allow list: if isAdmin() || isProviderOwner(pid);
+        allow create: if (isProviderOwner(pid) || isAdmin())
+          && get(providerPath(pid)).data.status == 'approved'
+          && get(providerPath(pid)).data.kind == 'organization'
+          && request.resource.data.keys().hasOnly(['uid', 'role', 'providerName', 'invitedBy', 'invitedByName', 'createdAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.role in ['owner', 'manager', 'instructor']
+          && request.resource.data.providerName == get(providerPath(pid)).data.name
+          && request.resource.data.invitedBy == request.auth.uid
+          && request.resource.data.invitedByName is string && request.resource.data.invitedByName.size() <= 120
+          && request.resource.data.createdAt == request.time
+          && !exists(memberPath(pid, uid));
+        // Rechazar (la persona), cancelar (el responsable o la administración) o al aceptar
+        allow delete: if isOwner(uid) || isProviderOwner(pid) || isAdmin();
+      }
+    }
+
+    // "¿Qué invitaciones tengo?": consulta de grupo por uid (solo las propias)
+    match /{path=**}/invites/{iid} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
     }
 
     // "¿De qué formadores soy parte?": consulta de grupo por uid (solo las propias membresías)
@@ -691,6 +747,19 @@ service cloud.firestore {
     function canManageApplications(pid) {
       return canSeeApplications(pid) && get(providerPath(pid)).data.status == 'approved';
     }
+    // Instructor asignado al curso (y todavía en el equipo del formador)
+    function isCourseInstructor(cid) {
+      return request.auth != null
+        && cid is string
+        && exists(coursePath(cid))
+        && request.auth.uid in get(coursePath(cid)).data.get('instructorUids', [])
+        && exists(memberPath(get(coursePath(cid)).data.providerId, request.auth.uid));
+    }
+    // Puede decidir sobre una postulación: responsable/coordinación, o el instructor asignado al curso
+    function canDecideApplication(a) {
+      return canManageApplications(a.providerId)
+        || (isCourseInstructor(a.courseId) && get(providerPath(a.providerId)).data.status == 'approved');
+    }
     function applicationCourseOk(d) {
       return ('providerId' in d)
         ? (exists(coursePath(d.courseId))
@@ -705,7 +774,7 @@ service cloud.firestore {
     match /applications/{appId} {
       allow read: if request.auth != null && resource.data.uid == request.auth.uid;
       // Formador: consulta con where providerId == su formador
-      allow read: if canSeeApplications(resource.data.providerId);
+      allow read: if canSeeApplications(resource.data.providerId) || isCourseInstructor(resource.data.courseId);
       allow list: if isAdmin();
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
@@ -722,7 +791,7 @@ service cloud.firestore {
         && request.resource.data.applicant.certifications.size() <= 20
         && applicationCourseOk(request.resource.data);
       // Formador: solo el estado y un mensaje para la persona; nunca sus datos
-      allow update: if canManageApplications(resource.data.providerId)
+      allow update: if canDecideApplication(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'providerNote', 'reviewedAt', 'reviewedBy'])
         && request.resource.data.status in ['seen', 'accepted', 'rejected']
         && (!('providerNote' in request.resource.data)

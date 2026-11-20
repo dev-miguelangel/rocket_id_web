@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router'
 import { ageFrom, decideApplication, markApplicationSeen, subscribeProviderApplications, type ProviderApplication } from '../../../../shared/applicationsApi'
 import { APPLICATION_STATUSES, type ApplicationStatus } from '../../../../shared/domain/courses'
 import { categoryOf } from '../../../../shared/domain/skills'
+import { subscribeInstructorApplications } from '../../../../shared/teamsApi'
 import { useAuth } from '../auth/AuthProvider'
 import { ProviderPicker } from '../courses/ProviderPicker'
 import { useCourseProvider } from '../courses/useCourseProvider'
@@ -21,21 +22,25 @@ const short = (d: Date | null) => (d ? d.toLocaleDateString('es-CL', { day: 'num
 
 export function ApplicationsPage() {
   const cp = useCourseProvider()
+  const { user } = useAuth()
   const [params, setParams] = useSearchParams()
   const pid = cp.current?.provider.id ?? null
+  // Responsables y coordinación ven todas; un instructor, solo las de sus cursos asignados
   const canSee = !!cp.current && (cp.current.role === 'owner' || cp.current.role === 'manager')
+  const uid = user?.uid ?? null
   const [state, setState] = useState<{ pid: string | null; list: ProviderApplication[] | null; error: boolean }>({ pid: null, list: null, error: false })
   const [filter, setFilter] = useState<Filter>('sent')
   const course = params.get('curso') ?? 'all'
   const openId = params.get('p')
 
   useEffect(() => {
-    if (!pid || !canSee) return
-    return subscribeProviderApplications(pid, (list, e) => {
+    if (!pid || !uid) return
+    const cb = (list: ProviderApplication[] | null, e?: unknown) => {
       if (e) console.error('applications', e)
       setState({ pid, list, error: !!e })
-    })
-  }, [pid, canSee])
+    }
+    return canSee ? subscribeProviderApplications(pid, cb) : subscribeInstructorApplications(pid, uid, cb)
+  }, [pid, canSee, uid])
 
   const list = state.pid === pid ? state.list : null
   const courses = useMemo(() => {
@@ -82,9 +87,12 @@ export function ApplicationsPage() {
     <div className="space-y-6">
       <ProviderPicker options={cp.options} current={cp.current} onChoose={cp.choose} />
 
-      {!canSee ? (
-        <Empty title="Sin acceso a postulaciones" text="Las postulaciones las gestionan responsables y coordinación del formador." />
-      ) : state.error && state.pid === pid ? (
+      {!canSee && (
+        <p className="rounded-xl bg-sky-50 p-4 text-sky-900 dark:bg-sky-500/10 dark:text-sky-200">
+          Como instructor ves las postulaciones de los cursos que tienes asignados.
+        </p>
+      )}
+      {state.error && state.pid === pid ? (
         <p role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
           No pudimos cargar las postulaciones. Revisa tu conexión y recarga la página.
         </p>
@@ -93,7 +101,11 @@ export function ApplicationsPage() {
       ) : list.length === 0 ? (
         <Empty
           title="Aún no hay postulaciones"
-          text="Cuando alguien postule a uno de tus cursos publicados, aparecerá aquí con los datos que compartió."
+          text={
+            canSee
+              ? 'Cuando alguien postule a uno de tus cursos publicados, aparecerá aquí con los datos que compartió.'
+              : 'Aquí verás las postulaciones de los cursos que te asignen. Pídele a coordinación que te asigne a un curso.'
+          }
           action={
             <Link to="/cursos" className={`${secondaryButton} mt-6`}>
               Ver mis cursos

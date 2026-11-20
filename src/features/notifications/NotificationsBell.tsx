@@ -94,6 +94,13 @@ const T: Record<NotificationType, { icon: string; tone: string; text: (n: AppNot
     text: (n) => `${n.actorName} no verificó tu certificación “${n.eventTitle}”`,
     context: 'Revisa los datos o pídela a otro formador',
   },
+  // Invitación a un equipo de formadores (eventId = id del formador, eventTitle = su nombre)
+  provider_invite: {
+    icon: '🤝',
+    tone: 'bg-emerald-100 dark:bg-emerald-500/15',
+    text: (n) => `${n.actorName} te invitó al equipo de “${n.eventTitle}”`,
+    context: 'Toca para aceptar o rechazar la invitación',
+  },
   sensitive_view: {
     icon: '👁️',
     tone: 'bg-violet-100 dark:bg-violet-500/15',
@@ -141,7 +148,9 @@ export function NotificationsSheet({ open, onClose, items }: { open: boolean; on
         ? `/cursos?curso=${encodeURIComponent(n.eventId)}`
         : n.type.startsWith('verification_')
           ? '/mis-datos'
-          : `/e/${n.eventId}`,
+          : n.type === 'provider_invite'
+            ? '/dictas'
+            : `/e/${n.eventId}`,
     )
   }
 
