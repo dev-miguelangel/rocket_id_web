@@ -23,6 +23,16 @@ export function CoursesPage() {
   const MOCK_COURSES = useCatalog()
   // Abre directamente un curso recomendado: /cursos?curso=ID
   const [selected, setSelected] = useState<Course | null>(() => MOCK_COURSES.find((c) => c.id === params.get('curso')) ?? null)
+  // Los cursos de Firestore llegan después del primer render: abre el del enlace cuando aparezca
+  const wanted = params.get('curso')
+  const [pendingOpen, setPendingOpen] = useState(!selected && !!wanted)
+  if (pendingOpen && wanted) {
+    const found = MOCK_COURSES.find((c) => c.id === wanted)
+    if (found) {
+      setPendingOpen(false)
+      setSelected(found)
+    }
+  }
   const [startStep, setStartStep] = useState<'detail' | 'consent'>('detail')
   const open = (c: Course, step: 'detail' | 'consent' = 'detail') => {
     setStartStep(step)
@@ -62,13 +72,15 @@ export function CoursesPage() {
 
   return (
     <div className="space-y-4 pb-4">
-      <div className="flex items-start gap-3 rounded-2xl border border-sky-300 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
-        <span aria-hidden="true">🧪</span>
-        <p>
-          <strong className="font-semibold">Cursos de demostración.</strong> Las instituciones y cursos de esta lista son ficticios mientras
-          desarrollamos la app para instituciones.
-        </p>
-      </div>
+      {MOCK_COURSES.some((c) => c.demo) && (
+        <div className="flex items-start gap-3 rounded-2xl border border-sky-300 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
+          <span aria-hidden="true">🧪</span>
+          <p>
+            <strong className="font-semibold">Incluye cursos de demostración.</strong> Los marcados como demostración son ficticios; el resto los publican
+            formadores revisados por rocketId.
+          </p>
+        </div>
+      )}
 
       <Segmented
         label="Ver"
@@ -81,7 +93,11 @@ export function CoursesPage() {
       />
 
       {/* Filtros por área: carrusel horizontal */}
-      <div className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filtrar por área">
+      <div
+        className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="group"
+        aria-label="Filtrar por área"
+      >
         <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>
           Todos
         </FilterChip>
@@ -157,6 +173,11 @@ function CourseCard({ course, application, onOpen }: { course: Course; applicati
         <div className="min-w-0 flex-1">
           <p className="text-base leading-snug font-semibold text-fg">{course.title}</p>
           <ProviderLine provider={course.provider} />
+          {course.demo && (
+            <span className="mt-1.5 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
+              Demostración
+            </span>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-4 py-3 text-sm text-muted">
@@ -177,8 +198,12 @@ function CourseCard({ course, application, onOpen }: { course: Course; applicati
 function EmptyState({ mine, noCatalog, onExplore }: { mine: boolean; noCatalog: boolean; onExplore: () => void }) {
   return (
     <div className="flex flex-col items-center rounded-2xl border border-dashed border-line-strong bg-card px-6 py-12 text-center">
-      <div className="text-4xl" aria-hidden="true">{mine ? '📭' : '🔎'}</div>
-      <p className="mt-3 font-semibold text-fg">{mine ? 'Aún no postulas a cursos' : noCatalog ? 'Pronto habrá cursos disponibles' : 'No hay cursos en esta área'}</p>
+      <div className="text-4xl" aria-hidden="true">
+        {mine ? '📭' : '🔎'}
+      </div>
+      <p className="mt-3 font-semibold text-fg">
+        {mine ? 'Aún no postulas a cursos' : noCatalog ? 'Pronto habrá cursos disponibles' : 'No hay cursos en esta área'}
+      </p>
       <p className="mt-1 text-sm text-muted">{mine ? 'Explora los cursos disponibles y postula.' : 'Prueba con otra área.'}</p>
       {mine && (
         <button type="button" onClick={onExplore} className="mt-4 h-11 rounded-xl bg-primary px-5 font-semibold text-white active:bg-primary-dark">

@@ -15,3 +15,5 @@ firebase-debug.log
 
 # Planes y notas internas (no se versionan)
 iadocs/
+# Copias de variables sin punto inicial (no las cubre .env*)
+env.*

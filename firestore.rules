@@ -586,6 +586,70 @@ service cloud.firestore {
       allow list: if isAdmin();
     }
 
+    // ---------- Cursos de formadores: courses/{cid} ----------
+    // Los crean y editan responsables o coordinación de un formador aprobado.
+    // El catálogo (status == 'published') lo lee cualquier persona con sesión.
+    function canManageCourses(pid) {
+      return request.auth != null
+        && pid is string
+        && exists(memberPath(pid, request.auth.uid))
+        && get(memberPath(pid, request.auth.uid)).data.role in ['owner', 'manager']
+        && get(providerPath(pid)).data.status == 'approved';
+    }
+    function validCourse(d) {
+      return d.keys().hasOnly(['providerId', 'providerName', 'providerKind', 'title', 'category', 'summary', 'description',
+          'location', 'modality', 'startDate', 'endDate', 'duration', 'priceCLP', 'spots', 'level', 'requirements',
+          'certification', 'status', 'instructorUids', 'createdBy', 'createdAt', 'updatedAt'])
+        && d.providerId is string
+        && d.providerName is string && d.providerName.size() <= 80
+        && d.providerKind in ['organization', 'independent']
+        && d.title is string && d.title.size() >= 3 && d.title.size() <= 100
+        && d.category in ['first_aid', 'rescue', 'navigation', 'technical', 'guiding', 'ethics']
+        && d.summary is string && d.summary.size() <= 160
+        && d.description is string && d.description.size() <= 2000
+        && d.location is string && d.location.size() <= 150
+        && d.modality in ['presencial', 'online', 'mixto']
+        && d.startDate is string && d.startDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.endDate is string && d.endDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.endDate >= d.startDate
+        && d.duration is string && d.duration.size() <= 60
+        && d.priceCLP is int && d.priceCLP >= 0 && d.priceCLP <= 10000000
+        && d.spots is int && d.spots >= 1 && d.spots <= 500
+        && d.level in ['Inicial', 'Intermedio', 'Avanzado']
+        && d.requirements is list && d.requirements.size() <= 10
+        && d.certification is string && d.certification.size() <= 120
+        && d.status in ['draft', 'published', 'closed']
+        && d.instructorUids is list && d.instructorUids.size() <= 20
+        && d.createdBy is string;
+    }
+
+    match /courses/{cid} {
+      allow get: if (request.auth != null && resource.data.status == 'published')
+        || isAdmin()
+        || isProviderMember(resource.data.providerId);
+      // Catálogo: consulta con where status == 'published'. El formador: where providerId == su formador.
+      allow list: if (request.auth != null && resource.data.status == 'published')
+        || isAdmin()
+        || isProviderMember(resource.data.providerId);
+      allow create: if canManageCourses(request.resource.data.providerId)
+        && validCourse(request.resource.data)
+        // Nombre y tipo copiados del formador (no se pueden inventar)
+        && request.resource.data.providerName == get(providerPath(request.resource.data.providerId)).data.name
+        && request.resource.data.providerKind == get(providerPath(request.resource.data.providerId)).data.kind
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if canManageCourses(resource.data.providerId)
+        && validCourse(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'category', 'summary', 'description', 'location', 'modality', 'startDate', 'endDate', 'duration',
+          'priceCLP', 'spots', 'level', 'requirements', 'certification', 'status', 'instructorUids', 'providerName', 'updatedAt'])
+        && request.resource.data.providerName == get(providerPath(resource.data.providerId)).data.name
+        && request.resource.data.updatedAt == request.time;
+      // Solo borradores: un curso publicado puede tener postulaciones, así que se cierra en vez de borrarse
+      allow delete: if canManageCourses(resource.data.providerId) && resource.data.status == 'draft';
+    }
+
     // Postulaciones a cursos: applications/{uid}_{courseId}
     // La persona crea (una sola vez por curso) y lee las suyas. No puede editarlas ni borrarlas:
     // el estado (sent → seen → accepted/rejected) lo cambiará la institución desde su app.

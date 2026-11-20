@@ -5,10 +5,12 @@ import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { LoginPage } from './auth/LoginPage'
 import { AppLayout } from './layout/AppLayout'
 import { HomePage } from './pages/HomePage'
+import { CourseEditorPage } from './courses/CourseEditorPage'
+import { CoursesPage } from './courses/CoursesPage'
 import { MyProvidersProvider } from './providers/MyProviders'
 import { ProviderFormPage } from './providers/ProviderFormPage'
 import { SoonPage } from './pages/SoonPage'
-import { BadgeIcon, BookIcon, InboxIcon, TeamIcon } from './ui/icons'
+import { BadgeIcon, InboxIcon, TeamIcon } from './ui/icons'
 import { UpdatePrompt } from './ui/UpdatePrompt'
 import './index.css'
 
@@ -43,16 +45,9 @@ const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: 'registro/:tipo', element: <ProviderFormPage /> },
       { path: 'solicitud/:id', element: <ProviderFormPage /> },
-      {
-        path: 'cursos',
-        element: (
-          <SoonPage
-            icon={BookIcon}
-            title="Tus cursos"
-            text="Crea cursos con fechas, cupos, requisitos y precio, asigna instructores y publícalos en rocketId."
-          />
-        ),
-      },
+      { path: 'cursos', element: <CoursesPage /> },
+      { path: 'cursos/nuevo', element: <CourseEditorPage /> },
+      { path: 'cursos/:id', element: <CourseEditorPage /> },
       {
         path: 'postulaciones',
         element: <SoonPage icon={InboxIcon} title="Postulaciones" text="Revisa quién postula a cada curso, con los datos que compartió, y acepta o rechaza." />,

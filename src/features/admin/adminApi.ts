@@ -21,6 +21,7 @@ export interface Metrics {
   applications: number | null
   providersApproved: number | null
   providersPending: number | null
+  coursesPublished: number | null
   at: Date
 }
 
@@ -60,6 +61,7 @@ export async function loadMetrics(): Promise<Metrics> {
     applications,
     providersApproved,
     providersPending,
+    coursesPublished,
   ] = await Promise.all([
     count(users),
     count(query(users, where(documentId(), '>=', 'mock_'), where(documentId(), '<', 'mock`'))),
@@ -85,6 +87,7 @@ export async function loadMetrics(): Promise<Metrics> {
     count(collection(db, 'applications')),
     count(query(collection(db, 'providers'), where('status', '==', 'approved'))),
     count(query(collection(db, 'providers'), where('status', '==', 'pending'))),
+    count(query(collection(db, 'courses'), where('status', '==', 'published'))),
   ])
 
   const v = landing?.data()?.visits
@@ -105,6 +108,7 @@ export async function loadMetrics(): Promise<Metrics> {
     applications,
     providersApproved,
     providersPending,
+    coursesPublished,
     at: new Date(),
   }
 }

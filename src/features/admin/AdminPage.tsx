@@ -145,6 +145,7 @@ export function AdminPage() {
           <Group title="Formadores">
             <Stat label="Aprobados" value={fmt(m?.providersApproved)} loading={!m} />
             <Stat label="Solicitudes por revisar" value={fmt(m?.providersPending)} hint="en la pestaña Formadores" loading={!m} />
+            <Stat label="Cursos publicados" value={fmt(m?.coursesPublished)} hint="sin contar los de demostración" loading={!m} />
           </Group>
 
           {allowed && <TestData onChanged={refresh} />}

@@ -194,9 +194,14 @@ function ProviderCard({ m }: { m: Membership }) {
           </div>
         )}
         {p.status === 'approved' && (
-          <p className="rounded-xl bg-emerald-50 p-4 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200">
-            ✓ Formador aprobado. Muy pronto podrás publicar cursos desde la sección Cursos.
-          </p>
+          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 p-4 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200">
+            <p className="flex-1">✓ Formador aprobado. Ya puedes crear y publicar cursos.</p>
+            {(role === 'owner' || role === 'manager') && (
+              <Link to="/cursos" className={primaryButton}>
+                Ir a Cursos
+              </Link>
+            )}
+          </div>
         )}
         {expiry && (
           <p className="rounded-xl bg-amber-50 p-4 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
