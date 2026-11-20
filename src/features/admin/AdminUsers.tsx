@@ -1,49 +1,18 @@
-import { collection, getDocs, type Timestamp } from 'firebase/firestore'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Segmented } from '../../components/form'
 import { useToast } from '../../components/Toast'
-import { db } from '../../lib/firebase'
 import { normalizeText } from '../../lib/searchTokens'
 import { useAuth } from '../auth/AuthProvider'
 import { subscribeContacts } from '../contacts/contactsApi'
 import { PersonRow } from '../contacts/PersonRow'
 import { ProfileSheet } from '../contacts/ProfileSheet'
-
-interface AdminUser {
-  uid: string
-  displayName: string
-  photoURL: string | null
-  rocketId: string
-  email: string
-  createdAt: Date | null
-  lastLoginAt: Date | null
-  isMock: boolean
-}
+import { fetchUsers, type AdminUser } from './usersApi'
 
 type Kind = 'all' | 'real' | 'mock'
 type Sort = 'recent' | 'name'
 
-const toDate = (v: unknown) => (v && typeof (v as Timestamp).toDate === 'function' ? (v as Timestamp).toDate() : null)
 const short = (d: Date) =>
   d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
-
-/** Todas las cuentas (solo la administración puede listarlas: lo exigen las reglas de Firestore) */
-async function fetchUsers(): Promise<AdminUser[]> {
-  const snap = await getDocs(collection(db, 'users'))
-  return snap.docs.map((d) => {
-    const v = d.data()
-    return {
-      uid: d.id,
-      displayName: typeof v.displayName === 'string' ? v.displayName : '',
-      photoURL: typeof v.photoURL === 'string' ? v.photoURL : null,
-      rocketId: typeof v.rocketId === 'string' ? v.rocketId : '—',
-      email: typeof v.email === 'string' ? v.email : '',
-      createdAt: toDate(v.createdAt),
-      lastLoginAt: toDate(v.lastLoginAt),
-      isMock: d.id.startsWith('mock_') || !!v._mock,
-    }
-  })
-}
 
 /** Pestaña "Usuarios" del panel: misma lista que Cordada, con búsqueda y filtros */
 export function AdminUsers() {

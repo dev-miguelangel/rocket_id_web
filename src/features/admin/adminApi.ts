@@ -1,16 +1,4 @@
-import {
-  collection,
-  collectionGroup,
-  doc,
-  documentId,
-  getCountFromServer,
-  getDoc,
-  getDocs,
-  query,
-  Timestamp,
-  where,
-  type Query,
-} from 'firebase/firestore'
+import { collection, collectionGroup, doc, documentId, getCountFromServer, getDoc, getDocs, query, Timestamp, where, type Query } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 
 /** Fecha YYYY-MM-DD en hora de Chile (la misma clave que usa el contador de visitas) */
@@ -31,6 +19,8 @@ export interface Metrics {
   participants: number | null
   cordada: number | null
   applications: number | null
+  providersApproved: number | null
+  providersPending: number | null
   at: Date
 }
 
@@ -53,31 +43,49 @@ export async function loadMetrics(): Promise<Metrics> {
   const days: string[] = []
   for (let i = DAILY_RANGE - 1; i >= 0; i--) days.push(chileDay(new Date(Date.now() - i * DAY)))
 
-  const [usersN, mockUsers, new7, new30, active7, onboarded, landing, daily, eventsN, publicEvents, upcomingEvents, participants, cordada, applications] =
-    await Promise.all([
-      count(users),
-      count(query(users, where(documentId(), '>=', 'mock_'), where(documentId(), '<', 'mock`'))),
-      count(query(users, where('createdAt', '>=', since(7)))),
-      count(query(users, where('createdAt', '>=', since(30)))),
-      count(query(users, where('lastLoginAt', '>=', since(7)))),
-      count(query(users, where('onboardedAt', '>', Timestamp.fromMillis(0)))),
-      getDoc(doc(db, 'stats', 'landing')).catch(() => null),
-      getDocs(query(collection(db, 'stats', 'landing', 'days'), where(documentId(), '>=', days[0])))
-        .then((s) => {
-          const byDay = new Map(s.docs.map((d) => [d.id, Number(d.data().visits) || 0]))
-          return days.map((day) => ({ day, visits: byDay.get(day) ?? 0 }))
-        })
-        .catch((e) => {
-          console.warn('admin daily', e)
-          return null
-        }),
-      count(events),
-      count(query(events, where('visibility', '==', 'public'))),
-      count(query(events, where('startAt', '>=', Timestamp.now()))),
-      count(collectionGroup(db, 'participants')),
-      count(collectionGroup(db, 'contacts')),
-      count(collection(db, 'applications')),
-    ])
+  const [
+    usersN,
+    mockUsers,
+    new7,
+    new30,
+    active7,
+    onboarded,
+    landing,
+    daily,
+    eventsN,
+    publicEvents,
+    upcomingEvents,
+    participants,
+    cordada,
+    applications,
+    providersApproved,
+    providersPending,
+  ] = await Promise.all([
+    count(users),
+    count(query(users, where(documentId(), '>=', 'mock_'), where(documentId(), '<', 'mock`'))),
+    count(query(users, where('createdAt', '>=', since(7)))),
+    count(query(users, where('createdAt', '>=', since(30)))),
+    count(query(users, where('lastLoginAt', '>=', since(7)))),
+    count(query(users, where('onboardedAt', '>', Timestamp.fromMillis(0)))),
+    getDoc(doc(db, 'stats', 'landing')).catch(() => null),
+    getDocs(query(collection(db, 'stats', 'landing', 'days'), where(documentId(), '>=', days[0])))
+      .then((s) => {
+        const byDay = new Map(s.docs.map((d) => [d.id, Number(d.data().visits) || 0]))
+        return days.map((day) => ({ day, visits: byDay.get(day) ?? 0 }))
+      })
+      .catch((e) => {
+        console.warn('admin daily', e)
+        return null
+      }),
+    count(events),
+    count(query(events, where('visibility', '==', 'public'))),
+    count(query(events, where('startAt', '>=', Timestamp.now()))),
+    count(collectionGroup(db, 'participants')),
+    count(collectionGroup(db, 'contacts')),
+    count(collection(db, 'applications')),
+    count(query(collection(db, 'providers'), where('status', '==', 'approved'))),
+    count(query(collection(db, 'providers'), where('status', '==', 'pending'))),
+  ])
 
   const v = landing?.data()?.visits
   return {
@@ -95,6 +103,8 @@ export async function loadMetrics(): Promise<Metrics> {
     participants,
     cordada,
     applications,
+    providersApproved,
+    providersPending,
     at: new Date(),
   }
 }

@@ -74,7 +74,9 @@ export function AppLayout() {
             ))}
           </nav>
           <header className="border-b border-line px-6 py-5 lg:px-10">
-            <h1 className="text-2xl font-bold tracking-tight text-fg">{current?.label ?? 'rocketId Formadores'}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-fg">
+              {current?.label ?? (/^\/(registro|solicitud)\//.test(pathname) ? 'Solicitud de formador' : 'rocketId Formadores')}
+            </h1>
           </header>
           <main className="flex-1 px-6 py-8 lg:px-10">
             <div className="mx-auto max-w-5xl">

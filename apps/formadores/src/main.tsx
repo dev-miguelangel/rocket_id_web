@@ -5,6 +5,8 @@ import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { LoginPage } from './auth/LoginPage'
 import { AppLayout } from './layout/AppLayout'
 import { HomePage } from './pages/HomePage'
+import { MyProvidersProvider } from './providers/MyProviders'
+import { ProviderFormPage } from './providers/ProviderFormPage'
 import { SoonPage } from './pages/SoonPage'
 import { BadgeIcon, BookIcon, InboxIcon, TeamIcon } from './ui/icons'
 import { UpdatePrompt } from './ui/UpdatePrompt'
@@ -25,7 +27,13 @@ function Root() {
         <span className="size-8 animate-spin rounded-full border-2 border-line-strong border-t-primary" />
       </div>
     )
-  return user ? <AppLayout /> : <LoginPage />
+  return user ? (
+    <MyProvidersProvider>
+      <AppLayout />
+    </MyProvidersProvider>
+  ) : (
+    <LoginPage />
+  )
 }
 
 const router = createBrowserRouter([
@@ -33,6 +41,8 @@ const router = createBrowserRouter([
     element: <Root />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'registro/:tipo', element: <ProviderFormPage /> },
+      { path: 'solicitud/:id', element: <ProviderFormPage /> },
       {
         path: 'cursos',
         element: (

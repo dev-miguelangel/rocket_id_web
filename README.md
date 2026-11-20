@@ -61,6 +61,16 @@ npm run build:formadores     # genera apps/formadores/dist
 
 `apps/formadores/vercel.json` solo compila esta app cuando cambian `apps/formadores/`, `shared/` o las dependencias.
 
+## Probar con emuladores (sin tocar producción)
+
+```bash
+npx --prefix tests/rules firebase emulators:start --only auth,firestore --project demo-rocketid
+VITE_FIREBASE_EMULATORS=true VITE_FIREBASE_PROJECT_ID=demo-rocketid VITE_FIREBASE_AUTH_DOMAIN=localhost npm run dev:formadores
+VITE_FIREBASE_EMULATORS=true VITE_FIREBASE_PROJECT_ID=demo-rocketid VITE_FIREBASE_AUTH_DOMAIN=localhost npm run dev -- --port 5180
+```
+
+Con `VITE_FIREBASE_EMULATORS=true` (solo en `npm run dev`), ambas apps usan los emuladores de Auth (puerto 9099) y Firestore (8089), con las reglas de `firestore.rules`. El login de Google abre una cuenta ficticia del emulador.
+
 ## Datos de prueba
 
 Usuarios ficticios para probar Cordada: ver [`scripts/mock/README.md`](scripts/mock/README.md).

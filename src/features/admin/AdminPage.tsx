@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { HoldButton } from '../../components/HoldButton'
 import { Segmented, Switch } from '../../components/form'
+import { AdminProviders } from './AdminProviders'
 import { AdminUsers } from './AdminUsers'
 import { DAILY_RANGE, loadMetrics, type Metrics } from './adminApi'
 import { useIsAdmin } from './useIsAdmin'
@@ -16,7 +17,7 @@ const pct = (a: number | null, b: number | null) => (a !== null && b ? `${Math.r
  */
 export function AdminPage() {
   const allowed = useIsAdmin()
-  const [tab, setTab] = useState<'metrics' | 'users'>('metrics')
+  const [tab, setTab] = useState<'metrics' | 'users' | 'providers'>('metrics')
   const [m, setM] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -64,13 +65,16 @@ export function AdminPage() {
         options={[
           { value: 'metrics', label: 'Métricas' },
           { value: 'users', label: 'Usuarios' },
+          { value: 'providers', label: 'Formadores' },
         ]}
       />
-      {tab === 'users' ? (
-        allowed ? (
+      {tab !== 'metrics' ? (
+        !allowed ? (
+          <div className="h-64 animate-pulse rounded-2xl bg-line/60" />
+        ) : tab === 'users' ? (
           <AdminUsers />
         ) : (
-          <div className="h-64 animate-pulse rounded-2xl bg-line/60" />
+          <AdminProviders />
         )
       ) : (
         <div className="space-y-8">
@@ -136,6 +140,11 @@ export function AdminPage() {
             <Stat label="Participaciones" value={fmt(m?.participants)} hint="incluye organizadores" loading={!m} />
             <Stat label="Vínculos de cordada" value={fmt(m?.cordada)} loading={!m} />
             <Stat label="Postulaciones a cursos" value={fmt(m?.applications)} loading={!m} />
+          </Group>
+
+          <Group title="Formadores">
+            <Stat label="Aprobados" value={fmt(m?.providersApproved)} loading={!m} />
+            <Stat label="Solicitudes por revisar" value={fmt(m?.providersPending)} hint="en la pestaña Formadores" loading={!m} />
           </Group>
 
           {allowed && <TestData onChanged={refresh} />}

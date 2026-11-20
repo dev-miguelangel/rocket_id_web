@@ -458,6 +458,134 @@ service cloud.firestore {
       }
     }
 
+    // ---------- Formadores (ver iadocs/formadores.md) ----------
+    // providers/{pid}: organización (id automático) o independiente (id ind_{uid}, uno por persona).
+    // Se registran en estado pending y solo la administración los aprueba, rechaza o suspende.
+    function providerPath(pid) {
+      return /databases/$(database)/documents/providers/$(pid);
+    }
+    function memberPath(pid, uid) {
+      return /databases/$(database)/documents/providers/$(pid)/members/$(uid);
+    }
+    function isProviderMember(pid) {
+      return request.auth != null && exists(memberPath(pid, request.auth.uid));
+    }
+    function validCredential(c) {
+      return c is map
+        && c.keys().hasOnly(['name', 'issuer', 'number', 'expiresAt', 'evidenceUrl'])
+        && c.name is string && c.name.size() >= 2 && c.name.size() <= 100
+        && c.issuer is string && c.issuer.size() >= 2 && c.issuer.size() <= 100
+        && optStr(c, 'number', 60)
+        && optStr(c, 'evidenceUrl', 300)
+        && (!('expiresAt' in c) || c.expiresAt == '' || (c.expiresAt is string && c.expiresAt.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')));
+    }
+    function validProvider(pid, d) {
+      return d.keys().hasOnly(['kind', 'name', 'website', 'about', 'legalName', 'rut', 'credential', 'contact', 'ownerUid',
+          'status', 'reviewNote', 'reviewedAt', 'reviewedBy', 'createdAt', 'updatedAt'])
+        && d.kind in ['organization', 'independent']
+        && d.name is string && d.name.size() >= 2 && d.name.size() <= 80
+        && optStr(d, 'website', 200)
+        && optStr(d, 'about', 500)
+        && optStr(d, 'reviewNote', 500)
+        && d.status in ['pending', 'approved', 'rejected', 'suspended']
+        && d.ownerUid is string
+        && d.contact is map && d.contact.keys().hasOnly(['name', 'email', 'phone'])
+        && d.contact.name is string && d.contact.name.size() <= 100
+        && d.contact.email is string && d.contact.email.size() <= 200
+        && optStr(d.contact, 'phone', 30)
+        && (d.kind == 'organization'
+          ? (!pid.matches('^ind_.*')
+              && d.legalName is string && d.legalName.size() >= 2 && d.legalName.size() <= 120
+              && d.rut is string && d.rut.matches('^[0-9]{7,8}-[0-9K]$')
+              && !('credential' in d))
+          : (pid == 'ind_' + d.ownerUid
+              && validCredential(d.credential)
+              && !('legalName' in d) && !('rut' in d)));
+    }
+    // Campos que la persona puede editar mientras su solicitud está en revisión o fue rechazada
+    function providerEditableKeys() {
+      return ['name', 'website', 'about', 'legalName', 'rut', 'credential', 'contact', 'status', 'updatedAt'];
+    }
+
+    match /providers/{pid} {
+      allow get: if isAdmin()
+        || (request.auth != null && resource.data.ownerUid == request.auth.uid)
+        || isProviderMember(pid)
+        || (request.auth != null && resource.data.status == 'approved');
+      // Catálogo de formadores aprobados (consulta con where status == 'approved')
+      allow list: if isAdmin() || (request.auth != null && resource.data.status == 'approved');
+
+      // Registro: solicitud en revisión + su membresía de responsable, en el mismo lote
+      allow create: if request.auth != null
+        && validProvider(pid, request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && !('reviewNote' in request.resource.data)
+        && !('reviewedAt' in request.resource.data)
+        && !('reviewedBy' in request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.contact.email == request.auth.token.email
+        && existsAfter(memberPath(pid, request.auth.uid))
+        && getAfter(memberPath(pid, request.auth.uid)).data.role == 'owner';
+      // Administración: "Hacer formador" a un deportista (puede quedar aprobado de inmediato)
+      allow create: if isAdmin()
+        && validProvider(pid, request.resource.data)
+        && existsAfter(memberPath(pid, request.resource.data.ownerUid));
+
+      // La persona corrige su solicitud y la reenvía (siempre vuelve a revisión)
+      allow update: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid
+        && resource.data.status in ['pending', 'rejected']
+        && validProvider(pid, request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(providerEditableKeys())
+        && request.resource.data.status == 'pending'
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.contact.email == request.auth.token.email;
+      // Administración: solo el estado y la revisión; nunca los datos del formador
+      allow update: if isAdmin()
+        && validProvider(pid, request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewNote', 'reviewedAt', 'reviewedBy', 'updatedAt']);
+
+      // Retirar la solicitud (no aprobada) junto con su membresía; la administración puede borrar cualquiera
+      allow delete: if isAdmin()
+        || (request.auth != null
+          && resource.data.ownerUid == request.auth.uid
+          && resource.data.status in ['pending', 'rejected']
+          && !existsAfter(memberPath(pid, request.auth.uid)));
+
+      // Membresías: providers/{pid}/members/{uid}
+      match /members/{uid} {
+        allow get: if isOwner(uid) || isAdmin() || isProviderMember(pid);
+        allow list: if isAdmin() || isProviderMember(pid);
+        // Al registrarse: la persona queda como responsable de la solicitud que crea en el mismo lote
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['uid', 'role', 'addedBy', 'since'])
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'owner'
+          && request.resource.data.addedBy == uid
+          && request.resource.data.since == request.time
+          && !exists(providerPath(pid))
+          && existsAfter(providerPath(pid))
+          && getAfter(providerPath(pid)).data.ownerUid == uid;
+        allow create: if isAdmin()
+          && request.resource.data.keys().hasOnly(['uid', 'role', 'addedBy', 'since'])
+          && request.resource.data.uid == uid
+          && request.resource.data.role in ['owner', 'manager', 'instructor']
+          && request.resource.data.addedBy == request.auth.uid
+          && request.resource.data.since == request.time;
+        allow update: if false;
+        // Solo junto con el retiro de la solicitud, o la administración
+        allow delete: if isAdmin() || (isOwner(uid) && !existsAfter(providerPath(pid)));
+      }
+    }
+
+    // "¿De qué formadores soy parte?": consulta de grupo por uid (solo las propias membresías)
+    match /{path=**}/members/{mid} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow list: if isAdmin();
+    }
+
     // Postulaciones a cursos: applications/{uid}_{courseId}
     // La persona crea (una sola vez por curso) y lee las suyas. No puede editarlas ni borrarlas:
     // el estado (sent → seen → accepted/rejected) lo cambiará la institución desde su app.
