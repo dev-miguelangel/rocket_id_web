@@ -11,7 +11,9 @@ import { ApplicationBadge } from '../courses/parts'
 import { categoryOf } from '../skills/schema'
 import { MEMBER_ROLES } from '../../../shared/domain/providers'
 import { acceptInvite, declineInvite, subscribeInstructorApplications, type Invite } from '../../../shared/teamsApi'
+import { markAllProviderNotificationsRead, markProviderNotificationRead, type ProviderNotification } from '../../../shared/providerNotificationsApi'
 import { useTeaching } from './useTeaching'
+import { useTeachingNotifications } from './useTeachingNotifications'
 
 /** "🎓 Cursos que dictas": postulaciones a los cursos del formador, desde el celular */
 export function TeachingPage() {
@@ -24,6 +26,7 @@ export function TeachingPage() {
   const [state, setState] = useState<{ pid: string | null; list: ProviderApplication[] | null; error: boolean }>({ pid: null, list: null, error: false })
   const course = params.get('curso')
   const [openId, setOpenId] = useState<string | null>(null)
+  const notices = useTeachingNotifications(memberships)
   const toast = useToast()
 
   // Responsables y coordinación ven todas las postulaciones; un instructor, las de sus cursos asignados
@@ -81,6 +84,19 @@ export function TeachingPage() {
             setParams({}, { replace: true })
           }}
           options={memberships.map((m) => ({ value: m.provider.id, label: m.provider.name }))}
+        />
+      )}
+
+      {!selected && notices.items.length > 0 && (
+        <Notices
+          items={notices.items}
+          unread={notices.unread}
+          showProvider={memberships.length > 1}
+          onOpen={(n) => {
+            // Abre la postulación del aviso (cambiando de formador si hace falta)
+            setChosen(n.providerId)
+            setOpenId(n.applicationId)
+          }}
         />
       )}
 
@@ -436,6 +452,93 @@ function Invites({ invites, onDone, toast }: { invites: Invite[]; onDone: (text:
         </p>
       )}
       {toast}
+    </section>
+  )
+}
+
+const NOTICE: Record<ProviderNotification['type'], { icon: string; text: (n: ProviderNotification) => string }> = {
+  application_new: { icon: '📥', text: (n) => `${n.personName || 'Alguien'} postuló a “${n.courseTitle}”` },
+  application_withdrawn: { icon: '↩️', text: (n) => `${n.personName || 'Alguien'} retiró su postulación a “${n.courseTitle}”` },
+  application_accepted: { icon: '✅', text: (n) => `${n.actorName || 'Alguien del equipo'} aceptó a ${n.personName || 'una persona'} en “${n.courseTitle}”` },
+  application_rejected: { icon: '✖️', text: (n) => `${n.actorName || 'Alguien del equipo'} rechazó a ${n.personName || 'una persona'} en “${n.courseTitle}”` },
+}
+
+function ago(d: Date | null) {
+  if (!d) return 'ahora'
+  const s = Math.max(0, (Date.now() - d.getTime()) / 1000)
+  if (s < 60) return 'ahora'
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`
+  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`
+  if (s < 7 * 86400) return `hace ${Math.floor(s / 86400)} d`
+  return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+}
+
+/** Avisos del formador: postulaciones nuevas, retiradas y decisiones del equipo */
+function Notices({
+  items,
+  unread,
+  showProvider,
+  onOpen,
+}: {
+  items: ProviderNotification[]
+  unread: number
+  showProvider: boolean
+  onOpen: (n: ProviderNotification) => void
+}) {
+  const { user } = useAuth()
+  const [all, setAll] = useState(false)
+  const shown = all ? items.slice(0, 20) : items.slice(0, 4)
+  const open = (n: ProviderNotification) => {
+    if (user && !n.readBy[user.uid]) markProviderNotificationRead(n, user.uid).catch(() => {})
+    onOpen(n)
+  }
+  return (
+    <section aria-labelledby="notices-title">
+      <div className="flex items-center justify-between px-1 pb-1">
+        <h2 id="notices-title" className="text-base font-bold text-fg">
+          Avisos {unread > 0 && <span className="ml-1 rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">{unread}</span>}
+        </h2>
+        {unread > 0 && user && (
+          <button
+            type="button"
+            onClick={() => markAllProviderNotificationsRead(items, user.uid).catch(() => {})}
+            className="-my-2 h-11 rounded-lg px-2 text-sm font-medium text-primary-text active:bg-line/60"
+          >
+            Marcar leídas
+          </button>
+        )}
+      </div>
+      <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card">
+        {shown.map((n) => {
+          const read = !!user && !!n.readBy[user.uid]
+          return (
+            <li key={`${n.providerId}/${n.id}`}>
+              <button
+                type="button"
+                onClick={() => open(n)}
+                className={`flex w-full items-start gap-3 px-4 py-3 text-left active:bg-line/40 ${read ? '' : 'bg-primary/5'}`}
+              >
+                <span className="mt-0.5 text-lg" aria-hidden="true">
+                  {NOTICE[n.type].icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-sm ${read ? 'text-fg-soft' : 'font-semibold text-fg'}`}>{NOTICE[n.type].text(n)}</span>
+                  <span className="block text-xs text-muted">
+                    {ago(n.createdAt)}
+                    {showProvider ? ` · ${n.providerName}` : ''}
+                  </span>
+                </span>
+                {!read && <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-primary" aria-label="Sin leer" />}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      {items.length > 4 && (
+        <button type="button" onClick={() => setAll((v) => !v)} className="mt-1 h-11 w-full rounded-xl text-sm font-medium text-primary-text active:bg-line/60">
+          {all ? 'Ver menos' : `Ver todos (${Math.min(items.length, 20)})`}
+        </button>
+      )}
     </section>
   )
 }

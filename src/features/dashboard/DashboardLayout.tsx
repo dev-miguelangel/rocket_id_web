@@ -13,6 +13,7 @@ import { useTheme, type ThemePreference } from '../../lib/theme'
 import { useAuth } from '../auth/AuthProvider'
 import { useIsAdmin } from '../admin/useIsAdmin'
 import { useTeaching } from '../teaching/useTeaching'
+import { useTeachingNotifications } from '../teaching/useTeachingNotifications'
 
 const tabs = [
   { to: '/', label: 'Inicio', icon: HomeIcon, end: true },
@@ -23,8 +24,7 @@ const tabs = [
 ] as const
 
 /** Rutas de detalle que pertenecen a una pestaña (ej. /e/:id → Eventos, /p/:id → Cordada) */
-const alsoActive = (to: string, pathname: string) =>
-  (to === '/eventos' && pathname.startsWith('/e/')) || (to === '/cordada' && pathname.startsWith('/perfil/'))
+const alsoActive = (to: string, pathname: string) => (to === '/eventos' && pathname.startsWith('/e/')) || (to === '/cordada' && pathname.startsWith('/perfil/'))
 
 export function DashboardLayout() {
   const onboarding = useOnboarding()
@@ -36,7 +36,18 @@ export function DashboardLayout() {
     <div className="flex min-h-dvh flex-col bg-surface">
       <header className="pt-safe sticky top-0 z-20 border-b border-line/70 bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/perfil/') ? 'Perfil' : pathname.startsWith('/e/') ? 'Evento' : pathname === '/admin' ? 'Administración' : pathname === '/dictas' ? 'Cursos que dictas' : 'rocketId')}</h1>
+          <h1 className="text-lg font-bold text-fg">
+            {title ??
+              (pathname.startsWith('/perfil/')
+                ? 'Perfil'
+                : pathname.startsWith('/e/')
+                  ? 'Evento'
+                  : pathname === '/admin'
+                    ? 'Administración'
+                    : pathname === '/dictas'
+                      ? 'Cursos que dictas'
+                      : 'rocketId')}
+          </h1>
           <div className="flex items-center gap-1">
             <NotificationsButton />
             <UserMenu />
@@ -50,10 +61,7 @@ export function DashboardLayout() {
 
       <Onboarding open={onboarding.open} onFinish={onboarding.finish} />
 
-      <nav
-        aria-label="Navegación principal"
-        className="pb-safe fixed inset-x-0 bottom-0 z-20 border-t border-line bg-card"
-      >
+      <nav aria-label="Navegación principal" className="pb-safe fixed inset-x-0 bottom-0 z-20 border-t border-line bg-card">
         <ul className="mx-auto flex h-16 max-w-3xl">
           {tabs.map(({ to, label, icon: Icon, end }) => (
             <li key={to} className="flex-1">
@@ -94,6 +102,7 @@ function UserMenu() {
   const [sheet, setSheet] = useState<'share' | 'privacy' | null>(null)
   const isAdmin = useIsAdmin()
   const teaching = useTeaching()
+  const notices = useTeachingNotifications(teaching.memberships)
   const navigate = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const closeSheet = useCallback(() => setSheet(null), [])
@@ -149,7 +158,13 @@ function UserMenu() {
             <div className="border-t border-line py-1">
               <MenuItem
                 icon={<span className="text-lg leading-none">🎓</span>}
-                label={teaching.invites.length ? `Cursos que dictas · ${teaching.invites.length} ${teaching.invites.length === 1 ? 'invitación' : 'invitaciones'}` : 'Cursos que dictas'}
+                label={
+                  teaching.invites.length
+                    ? `Cursos que dictas · ${teaching.invites.length} ${teaching.invites.length === 1 ? 'invitación' : 'invitaciones'}`
+                    : notices.unread
+                      ? `Cursos que dictas · ${notices.unread} ${notices.unread === 1 ? 'aviso' : 'avisos'}`
+                      : 'Cursos que dictas'
+                }
                 onClick={() => {
                   setOpen(false)
                   navigate('/dictas')
@@ -192,17 +207,32 @@ function UserMenu() {
 
 function MenuItem({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-fg active:bg-line/60">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-fg active:bg-line/60"
+    >
       <span className="text-muted">{icon}</span>
       <span className="flex-1">{label}</span>
-      <span className="text-muted" aria-hidden="true">›</span>
+      <span className="text-muted" aria-hidden="true">
+        ›
+      </span>
     </button>
   )
 }
 
 function ShareMenuIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
     </svg>
   )
@@ -210,7 +240,16 @@ function ShareMenuIcon() {
 
 function LockIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <rect x="4" y="11" width="16" height="10" rx="2" />
       <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </svg>
@@ -256,7 +295,16 @@ function ThemeSwitcher() {
 
 function SunIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="4" />
       <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
     </svg>
@@ -264,14 +312,32 @@ function SunIcon() {
 }
 function MoonIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
     </svg>
   )
 }
 function MonitorIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <rect x="2" y="4" width="20" height="13" rx="2" />
       <path d="M8 21h8M12 17v4" />
     </svg>
@@ -280,14 +346,32 @@ function MonitorIcon() {
 
 function HomeIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />
     </svg>
   )
 }
 function UserIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
     </svg>
@@ -295,7 +379,16 @@ function UserIcon() {
 }
 function PeopleIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="9" cy="8" r="3.5" />
       <path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
       <circle cx="17" cy="9" r="2.5" />
@@ -305,7 +398,16 @@ function PeopleIcon() {
 }
 function CapIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M2 9l10-5 10 5-10 5z" />
       <path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5M22 9v6" />
     </svg>
@@ -313,7 +415,16 @@ function CapIcon() {
 }
 function CalendarIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <rect x="3" y="5" width="18" height="16" rx="2" />
       <path d="M16 3v4M8 3v4M3 10h18" />
     </svg>
