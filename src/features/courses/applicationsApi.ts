@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
+import { collection, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { toTitleCaseName } from '../../lib/names'
 import type { ProfileForm } from '../profile/schema'
@@ -72,6 +72,10 @@ export const REQUIRED_FOR_APPLY: { key: keyof ProfileForm; label: string }[] = [
   { key: 'phone', label: 'Celular' },
   { key: 'contactEmail', label: 'Correo electrónico' },
 ]
+
+/** Declinar: la postulación queda como "Retirada" (el formador la sigue viendo así) */
+export const withdrawApplication = (uid: string, courseId: string) =>
+  updateDoc(doc(applications, applicationId(uid, courseId)), { status: 'withdrawn', withdrawnAt: serverTimestamp() })
 
 export function submitApplication(uid: string, course: Course, applicant: ApplicantSnapshot) {
   return setDoc(doc(applications, applicationId(uid, course.id)), {

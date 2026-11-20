@@ -771,27 +771,43 @@ service cloud.firestore {
         : d.courseId.matches('^demo-.*');
     }
 
+    function validNewApplication(appId, d) {
+      return request.auth != null
+        && d.uid == request.auth.uid
+        && appId == request.auth.uid + '_' + d.courseId
+        && d.keys().hasOnly(['uid', 'courseId', 'courseTitle', 'providerId', 'providerName', 'status', 'createdAt', 'consent', 'applicant'])
+        && d.status == 'sent'
+        && d.createdAt == request.time
+        && d.consent.keys().hasOnly(['version', 'acceptedAt'])
+        && d.consent.acceptedAt == request.time
+        && d.courseId is string && d.courseId.size() <= 100
+        && d.applicant is map
+        && d.applicant.certifications is list
+        && d.applicant.certifications.size() <= 20
+        && applicationCourseOk(d);
+    }
+
     match /applications/{appId} {
       allow read: if request.auth != null && resource.data.uid == request.auth.uid;
       // Formador: consulta con where providerId == su formador
       allow read: if canSeeApplications(resource.data.providerId) || isCourseInstructor(resource.data.courseId);
       allow list: if isAdmin();
-      allow create: if request.auth != null
-        && request.resource.data.uid == request.auth.uid
-        && appId == request.auth.uid + '_' + request.resource.data.courseId
-        && request.resource.data.keys().hasOnly(
-          ['uid', 'courseId', 'courseTitle', 'providerId', 'providerName', 'status', 'createdAt', 'consent', 'applicant'])
-        && request.resource.data.status == 'sent'
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.consent.keys().hasOnly(['version', 'acceptedAt'])
-        && request.resource.data.consent.acceptedAt == request.time
-        && request.resource.data.courseId is string && request.resource.data.courseId.size() <= 100
-        && request.resource.data.applicant is map
-        && request.resource.data.applicant.certifications is list
-        && request.resource.data.applicant.certifications.size() <= 20
-        && applicationCourseOk(request.resource.data);
+      allow create: if validNewApplication(appId, request.resource.data);
+      // La persona declina su postulación (enviada, vista o aceptada): queda como "withdrawn" para el formador
+      allow update: if request.auth != null
+        && resource.data.uid == request.auth.uid
+        && resource.data.status in ['sent', 'seen', 'accepted']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'withdrawnAt'])
+        && request.resource.data.status == 'withdrawn'
+        && request.resource.data.withdrawnAt == request.time;
+      // …y puede volver a postular (reemplaza la postulación retirada por una nueva)
+      allow update: if request.auth != null
+        && resource.data.uid == request.auth.uid
+        && resource.data.status == 'withdrawn'
+        && validNewApplication(appId, request.resource.data);
       // Formador: solo el estado y un mensaje para la persona; nunca sus datos
       allow update: if canDecideApplication(resource.data)
+        && resource.data.status != 'withdrawn'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'providerNote', 'reviewedAt', 'reviewedBy'])
         && request.resource.data.status in ['seen', 'accepted', 'rejected']
         && (!('providerNote' in request.resource.data)

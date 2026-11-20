@@ -246,7 +246,7 @@ function ApplicationSheet({
 
   const decided = a?.status === 'accepted' || a?.status === 'rejected'
   const footer =
-    a && canDecide ? (
+    a && canDecide && a.status !== 'withdrawn' ? (
       <div className="space-y-2">
         {deciding ? (
           <>
@@ -353,6 +353,7 @@ function ApplicationSheet({
             )}
           </div>
           <p className="px-1 text-xs text-subtle">Datos compartidos al postular, con su consentimiento. No incluyen su ficha de salud.</p>
+          {a.status === 'withdrawn' && <p className="rounded-xl bg-surface p-3 text-sm text-fg-soft ring-1 ring-line">La persona retiró su postulación.</p>}
           {!canDecide && <p className="px-1 text-sm text-muted">El formador está suspendido: no se pueden cambiar las postulaciones.</p>}
         </div>
       )}

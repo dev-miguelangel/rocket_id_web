@@ -38,7 +38,12 @@ export const APPLICATION_STATUSES = {
   seen: { label: 'Vista', tone: 'neutral' },
   accepted: { label: 'Aceptada', tone: 'success' },
   rejected: { label: 'Rechazada', tone: 'danger' },
+  /** La persona declinó (antes o después de ser aceptada) */
+  withdrawn: { label: 'Retirada', tone: 'neutral' },
 } as const
+
+/** Estados en que la persona todavía puede declinar su postulación */
+export const canWithdraw = (status: ApplicationStatus) => status === 'sent' || status === 'seen' || status === 'accepted'
 
 export type ApplicationStatus = keyof typeof APPLICATION_STATUSES
 

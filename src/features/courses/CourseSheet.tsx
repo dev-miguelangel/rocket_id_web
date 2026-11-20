@@ -5,9 +5,9 @@ import { useAuth } from '../auth/AuthProvider'
 import { useRocketId } from '../auth/useRocketId'
 import { DOC_TYPES, type ProfileForm } from '../profile/schema'
 import { categoryOf, statusOf, type SkillsData } from '../skills/schema'
-import { REQUIRED_FOR_APPLY, buildApplicantSnapshot, submitApplication } from './applicationsApi'
+import { REQUIRED_FOR_APPLY, buildApplicantSnapshot, submitApplication, withdrawApplication } from './applicationsApi'
 import { ApplicationBadge, ProviderLine } from './parts'
-import { APPLICATION_STATUSES, formatDateRange, formatPrice, type Application, type Course } from './schema'
+import { APPLICATION_STATUSES, canWithdraw, formatDateRange, formatPrice, type Application, type Course } from './schema'
 
 type Step = 'detail' | 'consent' | 'sent'
 
@@ -33,12 +33,14 @@ export function CourseSheet({ course, application, profile, skills, onClose, ini
   const [accepted, setAccepted] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [withdrawing, setWithdrawing] = useState<'ask' | 'busy' | null>(null)
 
   if (course && course !== shown) {
     setShown(course)
     setStep(application ? 'detail' : initialStep)
     setAccepted(false)
     setError(null)
+    setWithdrawing(null)
   }
 
   if (!shown) return null
@@ -73,14 +75,80 @@ export function CourseSheet({ course, application, profile, skills, onClose, ini
     }
   }
 
+  const withdraw = async () => {
+    if (!user) return
+    setWithdrawing('busy')
+    setError(null)
+    try {
+      await withdrawApplication(user.uid, c.id)
+      setWithdrawing(null)
+    } catch (e) {
+      console.error('withdrawApplication', e)
+      setError('No se pudo declinar. Revisa tu conexión e inténtalo de nuevo.')
+      setWithdrawing('ask')
+    }
+  }
+  // Un curso de formador que ya no está publicado no acepta postulaciones nuevas
+  const closed = 'status' in c && (c as { status?: string }).status !== 'published'
+
   const titles: Record<Step, string> = { detail: 'Curso', consent: 'Postular', sent: 'Postulación' }
 
   const footer =
     step === 'detail' ? (
-      application ? (
-        <button type="button" disabled className={primaryBtn}>
-          ✓ Postulación {APPLICATION_STATUSES[application.status].label.toLowerCase()}
+      application && application.status === 'withdrawn' ? (
+        <button type="button" onClick={() => setStep('consent')} disabled={closed} className={primaryBtn}>
+          {closed ? 'El curso ya no recibe postulaciones' : 'Volver a postular'}
         </button>
+      ) : application ? (
+        <div className="space-y-2">
+          {withdrawing === 'ask' || withdrawing === 'busy' ? (
+            <div role="group" aria-label="Confirmar" className="space-y-2">
+              <p className="px-1 text-sm text-fg-soft">
+                {application.status === 'accepted'
+                  ? `¿Declinar tu cupo en este curso? ${provider} verá que ya no participarás.`
+                  : `¿Retirar tu postulación? ${provider} verá que la retiraste.`}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWithdrawing(null)}
+                  disabled={withdrawing === 'busy'}
+                  className="h-12 rounded-xl border border-line-strong text-base font-semibold text-fg active:bg-line/60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={withdraw}
+                  disabled={withdrawing === 'busy'}
+                  className="h-12 rounded-xl bg-red-600 text-base font-semibold text-white active:bg-red-700 disabled:opacity-60"
+                >
+                  {withdrawing === 'busy' ? 'Guardando…' : 'Sí, declinar'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button type="button" disabled className={primaryBtn}>
+                ✓ Postulación {APPLICATION_STATUSES[application.status].label.toLowerCase()}
+              </button>
+              {canWithdraw(application.status) && (
+                <button
+                  type="button"
+                  onClick={() => setWithdrawing('ask')}
+                  className="h-11 w-full rounded-xl text-base font-medium text-red-600 active:bg-red-50 dark:text-red-400 dark:active:bg-red-500/10"
+                >
+                  {application.status === 'accepted' ? 'Declinar mi cupo' : 'Retirar postulación'}
+                </button>
+              )}
+            </>
+          )}
+          {error && (
+            <p role="alert" className="px-1 text-sm text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          )}
+        </div>
       ) : (
         <button type="button" onClick={() => setStep('consent')} className={primaryBtn}>
           Postular a este curso
@@ -160,7 +228,7 @@ function Detail({ course: c, application }: { course: Course; application?: Appl
       {application && (
         <div className="flex items-center justify-between rounded-2xl border border-line bg-card p-4">
           <div>
-            <p className="text-sm font-medium text-fg">Ya postulaste a este curso</p>
+            <p className="text-sm font-medium text-fg">{application.status === 'withdrawn' ? 'Retiraste tu postulación' : 'Ya postulaste a este curso'}</p>
             {application.createdAt && (
               <p className="text-xs text-muted">{application.createdAt.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
             )}

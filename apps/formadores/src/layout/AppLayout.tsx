@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
+import { useMyProviders } from '../providers/MyProviders'
 import { BadgeIcon, BookIcon, HomeIcon, InboxIcon, LogoutIcon, TeamIcon } from '../ui/icons'
 import { Logo } from '../ui/Logo'
 import { MobileNotice } from '../ui/MobileNotice'
@@ -20,6 +21,12 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export function AppLayout() {
   const { user, signOut } = useAuth()
   const { pathname } = useLocation()
+  const { memberships } = useMyProviders()
+  // "Equipo" solo para quien es parte de una organización aprobada (o suspendida)
+  const inOrganization = !!memberships?.some(
+    (m) => m.provider.kind === 'organization' && (m.provider.status === 'approved' || m.provider.status === 'suspended'),
+  )
+  const nav = NAV.filter((n) => n.to !== '/equipo' || inOrganization)
   const current = NAV.find((n) => (n.end ? pathname === n.to : pathname.startsWith(n.to)))
 
   return (
@@ -37,7 +44,7 @@ export function AppLayout() {
             </p>
           </div>
           <nav aria-label="Secciones" className="mt-8 flex flex-col gap-1">
-            {NAV.map(({ to, label, icon: Icon, end }) => (
+            {nav.map(({ to, label, icon: Icon, end }) => (
               <NavLink key={to} to={to} end={end} className={linkClass} title={label}>
                 <Icon className="size-5 shrink-0" />
                 <span className="hidden lg:inline">{label}</span>
@@ -67,7 +74,7 @@ export function AppLayout() {
         <div className="flex min-w-0 flex-1 flex-col">
           {/* En celular: navegación horizontal arriba */}
           <nav aria-label="Secciones" className="flex gap-1 overflow-x-auto border-b border-line bg-card px-3 py-2 md:hidden">
-            {NAV.map(({ to, label, end }) => (
+            {nav.map(({ to, label, end }) => (
               <NavLink key={to} to={to} end={end} className={(s) => `${linkClass(s)} shrink-0`}>
                 {label}
               </NavLink>

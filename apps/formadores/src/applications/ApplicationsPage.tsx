@@ -16,6 +16,7 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'seen', label: 'Vistas' },
   { value: 'accepted', label: 'Aceptadas' },
   { value: 'rejected', label: 'Rechazadas' },
+  { value: 'withdrawn', label: 'Retiradas' },
   { value: 'all', label: 'Todas' },
 ]
 const short = (d: Date | null) => (d ? d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }) : '—')
@@ -210,6 +211,17 @@ function ApplicationDetail({ a, providerName, canDecide }: { a: ProviderApplicat
   const age = ageFrom(p.birthDate)
   const decided = a.status === 'accepted' || a.status === 'rejected'
 
+  // Si la persona vuelve a postular o se retira mientras la ficha está abierta, se limpia lo anterior
+  const [lastStatus, setLastStatus] = useState(a.status)
+  if (a.status !== lastStatus) {
+    setLastStatus(a.status)
+    if (a.status === 'sent' || a.status === 'withdrawn') {
+      setMsg(null)
+      setDeciding(null)
+      setNote('')
+    }
+  }
+
   // Abrirla la marca como vista (la persona ve "Vista" en su app)
   useEffect(() => {
     if (user && canDecide && a.status === 'sent') markApplicationSeen(user.uid, a).catch((e) => console.warn('seen', e))
@@ -282,7 +294,11 @@ function ApplicationDetail({ a, providerName, canDecide }: { a: ProviderApplicat
             <span className="font-semibold">Tu mensaje:</span> {a.providerNote}
           </p>
         )}
-        {!canDecide ? (
+        {a.status === 'withdrawn' ? (
+          <p className="rounded-xl bg-surface p-3 text-sm text-fg-soft">
+            La persona retiró su postulación. Si vuelve a postular, aparecerá otra vez como nueva.
+          </p>
+        ) : !canDecide ? (
           <p className="text-sm text-muted">El formador no está aprobado: no se pueden cambiar las postulaciones.</p>
         ) : deciding ? (
           <div className="space-y-3">

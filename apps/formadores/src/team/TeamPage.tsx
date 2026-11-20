@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { MEMBER_ROLES, type Member, type MemberRole } from '../../../../shared/domain/providers'
 import {
   cancelInvite,
@@ -17,7 +17,6 @@ import { useAuth } from '../auth/AuthProvider'
 import { ProviderPicker } from '../courses/ProviderPicker'
 import { useCourseProvider } from '../courses/useCourseProvider'
 import { Badge, Card, dangerButton, Field, inputClass, primaryButton, secondaryButton } from '../ui/form'
-import { TeamIcon } from '../ui/icons'
 
 const ROLES = Object.keys(MEMBER_ROLES) as MemberRole[]
 
@@ -37,12 +36,12 @@ function usePeople(uids: string[]) {
 }
 
 export function TeamPage() {
-  const cp = useCourseProvider()
+  // Equipo solo existe en organizaciones: un formador independiente no suma personas
+  const cp = useCourseProvider({ onlyOrganizations: true })
   const { user } = useAuth()
   const navigate = useNavigate()
   const pid = cp.current?.provider.id ?? null
   const isOwner = cp.current?.role === 'owner'
-  const isOrg = cp.current?.provider.kind === 'organization'
   const [team, setTeam] = useState<{ pid: string | null; list: Member[] | null }>({ pid: null, list: null })
   const [invites, setInvites] = useState<{ pid: string | null; list: Invite[] }>({ pid: null, list: [] })
   const [busy, setBusy] = useState<string | null>(null)
@@ -54,9 +53,9 @@ export function TeamPage() {
     return subscribeTeam(pid, (list) => setTeam({ pid, list }))
   }, [pid])
   useEffect(() => {
-    if (!pid || !isOwner || !isOrg) return
+    if (!pid || !isOwner) return
     return subscribeProviderInvites(pid, (list) => setInvites({ pid, list }))
-  }, [pid, isOwner, isOrg])
+  }, [pid, isOwner])
 
   const members = team.pid === pid ? team.list : null
   const pending = invites.pid === pid ? invites.list : []
@@ -84,20 +83,8 @@ export function TeamPage() {
   }
 
   if (cp.loading) return <div className="h-80 animate-pulse rounded-2xl bg-line/60" aria-busy="true" />
-  if (!cp.current)
-    return (
-      <Empty title="Aún no tienes equipo" text="Cuando tu organización esté aprobada podrás invitar a instructores y coordinación por su rocketId o correo." />
-    )
-  if (!isOrg)
-    return (
-      <div className="space-y-6">
-        <ProviderPicker options={cp.options} current={cp.current} onChoose={cp.choose} />
-        <Empty
-          title="Los formadores independientes no tienen equipo"
-          text="Si diriges una escuela o club, regístrala como organización desde el Inicio para invitar a tu equipo."
-        />
-      </div>
-    )
+  // Sin organizaciones (por ejemplo, solo independiente): la sección no está disponible
+  if (!cp.current) return <Navigate to="/" replace />
 
   return (
     <div className="space-y-6">
@@ -356,17 +343,5 @@ function InviteForm({ providerId, providerName, members, pending }: { providerId
         </p>
       )}
     </Card>
-  )
-}
-
-function Empty({ title, text }: { title: string; text: string }) {
-  return (
-    <section className="flex flex-col items-center rounded-2xl border border-dashed border-line-strong px-6 py-20 text-center">
-      <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary-text">
-        <TeamIcon className="size-7" />
-      </span>
-      <h2 className="mt-5 text-lg font-semibold text-fg">{title}</h2>
-      <p className="mt-2 max-w-md text-muted">{text}</p>
-    </section>
   )
 }

@@ -147,4 +147,41 @@ await t('Otro formador NO envía avisos de postulación', () =>
 await t('NO avisa a quien no postuló', () => assertFails(setDoc(doc(owner, 'users/bob/notifications/n5'), notif('application_rejected', 'owner'))))
 await t('La persona lee el aviso', () => assertSucceeds(getDoc(doc(alice, 'users/alice/notifications/n1'))))
 
+// ---------- La persona declina su postulación ----------
+await t('La persona declina una postulación aceptada', async () => {
+  await env.withSecurityRulesDisabled((c) => updateDoc(doc(c.firestore(), 'applications/alice_c1'), { status: 'accepted' }))
+  await assertSucceeds(updateDoc(doc(alice, 'applications/alice_c1'), { status: 'withdrawn', withdrawnAt: serverTimestamp() }))
+})
+await t('Otra persona NO declina por ella', async () => {
+  await env.withSecurityRulesDisabled((c) =>
+    setDoc(doc(c.firestore(), 'applications/bob_c1'), {
+      ...application('bob', 'c1'),
+      status: 'sent',
+      createdAt: Timestamp.now(),
+      consent: { version: 'v', acceptedAt: Timestamp.now() },
+    }),
+  )
+  await assertFails(updateDoc(doc(alice, 'applications/bob_c1'), { status: 'withdrawn', withdrawnAt: serverTimestamp() }))
+})
+await t('NO declina una postulación rechazada', async () => {
+  await env.withSecurityRulesDisabled((c) => updateDoc(doc(c.firestore(), 'applications/bob_c1'), { status: 'rejected' }))
+  await assertFails(updateDoc(doc(bob, 'applications/bob_c1'), { status: 'withdrawn', withdrawnAt: serverTimestamp() }))
+})
+await t('Al declinar NO cambia otros datos', async () => {
+  await env.withSecurityRulesDisabled((c) => updateDoc(doc(c.firestore(), 'applications/bob_c1'), { status: 'sent' }))
+  await assertFails(updateDoc(doc(bob, 'applications/bob_c1'), { status: 'withdrawn', withdrawnAt: serverTimestamp(), courseTitle: 'Otro' }))
+})
+await t('La persona NO se acepta a sí misma', () =>
+  assertFails(updateDoc(doc(bob, 'applications/bob_c1'), { status: 'accepted', withdrawnAt: serverTimestamp() })),
+)
+await t('El formador NO cambia una postulación retirada', () =>
+  assertFails(updateDoc(doc(owner, 'applications/alice_c1'), { status: 'accepted', reviewedBy: 'owner', reviewedAt: serverTimestamp() })),
+)
+await t('El formador ve la postulación retirada', () => assertSucceeds(getDoc(doc(owner, 'applications/alice_c1'))))
+await t('Vuelve a postular tras retirarla', () => assertSucceeds(setDoc(doc(alice, 'applications/alice_c1'), application('alice', 'c1'))))
+await t('NO vuelve a postular "aceptada"', async () => {
+  await env.withSecurityRulesDisabled((c) => updateDoc(doc(c.firestore(), 'applications/alice_c1'), { status: 'withdrawn' }))
+  await assertFails(setDoc(doc(alice, 'applications/alice_c1'), application('alice', 'c1', 'org1', 'Escuela Andina', { status: 'accepted' })))
+})
+
 await done()
