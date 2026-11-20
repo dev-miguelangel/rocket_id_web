@@ -32,12 +32,34 @@ Los pasos 3 y 4, junto con el rewrite de `/__/auth/*` en `vercel.json`, hacen qu
 ## Estructura
 
 ```
-src/lib/firebase.ts          init de Auth + Firestore (caché offline)
+src/                         app de deportistas (móvil)
+apps/formadores/             app de formadores (PWA de escritorio)
+shared/                      código compartido por ambas apps: firebase, tipos (cursos, certificaciones, formadores), tokens de estilo, URLs
+shared/firebase.ts           init de Auth + Firestore (caché offline); src/lib/firebase.ts lo reexporta
 src/features/auth/           AuthProvider, guards de rutas, LoginPage, perfil en Firestore
 src/features/dashboard/      Layout (top bar + bottom nav), Inicio, Mis datos, Eventos
 src/components/              Logo, Splash, aviso de actualización PWA
 firestore.rules              cada usuario solo accede a users/{suUid}
 ```
+
+## App de formadores (`apps/formadores`)
+
+PWA de escritorio para que los formadores publiquen cursos, gestionen postulaciones y verifiquen certificaciones. Usa el mismo proyecto Firebase y las mismas dependencias del `package.json` raíz.
+
+```bash
+npm run dev:formadores       # http://localhost:5174 (usa el mismo .env.local)
+npm run build:formadores     # genera apps/formadores/dist
+```
+
+**Deploy (segundo proyecto de Vercel, mismo repositorio):**
+
+1. En Vercel, **Add New → Project** e importar este mismo repositorio. Nombre del proyecto: `rocketid-formadores`, para obtener `rocketid-formadores.vercel.app`.
+2. En **Root Directory**, elegir `apps/formadores` y dejar activado *Include files outside the root directory*. Los comandos de instalación y build ya están en `apps/formadores/vercel.json`.
+3. Cargar las mismas variables `VITE_FIREBASE_*`, pero con **`VITE_FIREBASE_AUTH_DOMAIN=rocketid-formadores.vercel.app`**. Opcional: `VITE_APP_URL` y `VITE_FORMADORES_URL`, si cambian las direcciones.
+4. En Firebase, **Authentication → Configuración → Dominios autorizados**: agregar `rocketid-formadores.vercel.app`.
+5. En Google Cloud, en el cliente OAuth web: agregar `https://rocketid-formadores.vercel.app/__/auth/handler`.
+
+`apps/formadores/vercel.json` solo compila esta app cuando cambian `apps/formadores/`, `shared/` o las dependencias.
 
 ## Datos de prueba
 

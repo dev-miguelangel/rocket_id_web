@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:formadores": "vite apps/formadores",
     "build": "tsc -b && vite build",
+    "build:formadores": "tsc -b apps/formadores && vite build apps/formadores",
     "lint": "oxlint",
     "preview": "vite preview",
+    "preview:formadores": "vite preview apps/formadores",
     "mock:seed": "node scripts/mock/seed.mjs",
     "mock:list": "node scripts/mock/list.mjs",
     "mock:purge": "node scripts/mock/purge.mjs",

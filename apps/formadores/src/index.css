@@ -1,0 +1,21 @@
+@import 'tailwindcss' source('../');
+@import '../../../shared/styles/tokens.css';
+@source '../../../shared';
+
+html,
+body,
+#root {
+  min-height: 100dvh;
+}
+
+body {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+/* Barra de título propia cuando la PWA instalada usa window-controls-overlay */
+.titlebar {
+  height: env(titlebar-area-height, 0px);
+  -webkit-app-region: drag;
+  app-region: drag;
+}

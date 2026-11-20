@@ -1,0 +1,6 @@
+{
+  "name": "rocketid-formadores",
+  "private": true,
+  "type": "module",
+  "description": "PWA de escritorio para formadores. Usa las dependencias del package.json raíz (npm run dev:formadores / build:formadores)."
+}

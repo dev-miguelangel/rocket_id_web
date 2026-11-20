@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.node.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "../../node_modules/.tmp/formadores.node.tsbuildinfo"
+  },
+  "include": ["vite.config.ts"]
+}

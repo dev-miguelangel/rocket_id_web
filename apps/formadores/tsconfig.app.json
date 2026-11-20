@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "../../node_modules/.tmp/formadores.app.tsbuildinfo"
+  },
+  "include": ["src", "../../shared"]
+}
