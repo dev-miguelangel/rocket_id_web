@@ -1,17 +1,10 @@
-import { collection, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, doc, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore'
+import { newProviderNotificationRef, providerNotificationData } from '../../../shared/providerNotificationsApi'
 import { db } from '../../lib/firebase'
 import { toTitleCaseName } from '../../lib/names'
 import type { ProfileForm } from '../profile/schema'
 import type { SkillsData } from '../skills/schema'
-import {
-  APPLICATION_STATUSES,
-  CONSENT_VERSION,
-  applicationId,
-  type ApplicantSnapshot,
-  type Application,
-  type ApplicationStatus,
-  type Course,
-} from './schema'
+import { APPLICATION_STATUSES, CONSENT_VERSION, applicationId, type ApplicantSnapshot, type Application, type ApplicationStatus, type Course } from './schema'
 
 const applications = collection(db, 'applications')
 
@@ -73,12 +66,28 @@ export const REQUIRED_FOR_APPLY: { key: keyof ProfileForm; label: string }[] = [
   { key: 'contactEmail', label: 'Correo electrónico' },
 ]
 
-/** Declinar: la postulación queda como "Retirada" (el formador la sigue viendo así) */
-export const withdrawApplication = (uid: string, courseId: string) =>
-  updateDoc(doc(applications, applicationId(uid, courseId)), { status: 'withdrawn', withdrawnAt: serverTimestamp() })
+/** Declinar: la postulación queda como "Retirada" (el formador la sigue viendo así y recibe un aviso) */
+export async function withdrawApplication(uid: string, course: Course, personName: string) {
+  const id = applicationId(uid, course.id)
+  const b = writeBatch(db)
+  b.update(doc(applications, id), { status: 'withdrawn', withdrawnAt: serverTimestamp() })
+  if (course.providerId)
+    b.set(
+      newProviderNotificationRef(course.providerId),
+      providerNotificationData(
+        'application_withdrawn',
+        { applicationId: id, courseId: course.id, courseTitle: course.title, personName },
+        { uid, name: personName },
+      ),
+    )
+  await b.commit()
+}
 
-export function submitApplication(uid: string, course: Course, applicant: ApplicantSnapshot) {
-  return setDoc(doc(applications, applicationId(uid, course.id)), {
+/** Postular (o volver a postular). En cursos de formadores, el formador recibe un aviso en el mismo lote. */
+export async function submitApplication(uid: string, course: Course, applicant: ApplicantSnapshot) {
+  const id = applicationId(uid, course.id)
+  const b = writeBatch(db)
+  b.set(doc(applications, id), {
     uid,
     courseId: course.id,
     courseTitle: course.title,
@@ -90,4 +99,14 @@ export function submitApplication(uid: string, course: Course, applicant: Applic
     consent: { version: CONSENT_VERSION, acceptedAt: serverTimestamp() },
     applicant,
   })
+  if (course.providerId)
+    b.set(
+      newProviderNotificationRef(course.providerId),
+      providerNotificationData(
+        'application_new',
+        { applicationId: id, courseId: course.id, courseTitle: course.title, personName: applicant.fullName },
+        { uid, name: applicant.fullName },
+      ),
+    )
+  await b.commit()
 }

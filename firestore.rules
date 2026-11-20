@@ -630,6 +630,41 @@ service cloud.firestore {
           || (isOwner(uid) && resource.data.role != 'owner');
       }
 
+      // Avisos del formador: providers/{pid}/notifications/{nid}
+      // Postulaciones nuevas o retiradas (las escribe quien postula, en el mismo lote) y decisiones
+      // del equipo (las escribe quien decide). readBy: quién del equipo ya lo leyó.
+      match /notifications/{nid} {
+        allow read: if canSeeApplications(pid) || isCourseInstructor(resource.data.courseId);
+        allow create: if request.auth != null
+          && request.resource.data.keys().hasOnly(['type', 'applicationId', 'courseId', 'courseTitle', 'personName', 'actorUid', 'actorName', 'readBy', 'createdAt'])
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.readBy == {}
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.courseTitle is string && request.resource.data.courseTitle.size() <= 100
+          && request.resource.data.personName is string && request.resource.data.personName.size() <= 120
+          && request.resource.data.actorName is string && request.resource.data.actorName.size() <= 120
+          && getAfter(applicationPath(request.resource.data.applicationId)).data.providerId == pid
+          && getAfter(applicationPath(request.resource.data.applicationId)).data.courseId == request.resource.data.courseId
+          && (
+            // Quien postula: nueva (o de nuevo) y retirada
+            (request.resource.data.type in ['application_new', 'application_withdrawn']
+              && request.resource.data.applicationId == request.auth.uid + '_' + request.resource.data.courseId
+              && getAfter(applicationPath(request.resource.data.applicationId)).data.status
+                == (request.resource.data.type == 'application_new' ? 'sent' : 'withdrawn'))
+            // Alguien del equipo decidió
+            || (request.resource.data.type in ['application_accepted', 'application_rejected']
+              && canDecideApplication(getAfter(applicationPath(request.resource.data.applicationId)).data)
+              && getAfter(applicationPath(request.resource.data.applicationId)).data.status
+                == (request.resource.data.type == 'application_accepted' ? 'accepted' : 'rejected'))
+          );
+        // Marcar como leído: cada persona solo su propia marca
+        allow update: if (canSeeApplications(pid) || isCourseInstructor(resource.data.courseId))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+          && request.resource.data.readBy.diff(resource.data.readBy).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.readBy[request.auth.uid] == true;
+        allow delete: if false;
+      }
+
       // Invitaciones: providers/{pid}/invites/{uid} (solo organizaciones aprobadas)
       match /invites/{uid} {
         allow get: if isOwner(uid) || isAdmin() || isProviderOwner(pid);

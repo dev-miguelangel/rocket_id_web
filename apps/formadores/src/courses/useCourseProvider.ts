@@ -15,13 +15,14 @@ const read = () => {
  * Formador con el que se trabaja en Cursos (si la persona es parte de varios, se elige y se recuerda).
  * Solo cuentan los formadores aprobados o suspendidos (estos últimos en solo lectura).
  */
-export function useCourseProvider({ onlyOrganizations = false }: { onlyOrganizations?: boolean } = {}) {
+export function useCourseProvider({ onlyOrganizations = false, prefer = null }: { onlyOrganizations?: boolean; prefer?: string | null } = {}) {
   const { memberships, error } = useMyProviders()
   const [chosen, setChosen] = useState<string | null>(read)
   const options: Membership[] = (memberships ?? []).filter(
     (m) => (m.provider.status === 'approved' || m.provider.status === 'suspended') && (!onlyOrganizations || m.provider.kind === 'organization'),
   )
-  const current = options.find((m) => m.provider.id === chosen) ?? options[0] ?? null
+  // `prefer`: formador pedido por la URL (por ejemplo, al abrir un aviso)
+  const current = options.find((m) => m.provider.id === prefer) ?? options.find((m) => m.provider.id === chosen) ?? options[0] ?? null
 
   const choose = (id: string) => {
     setChosen(id)

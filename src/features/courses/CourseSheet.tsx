@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { BottomSheet } from '../../components/Sheet'
+import { toTitleCaseName } from '../../lib/names'
 import { useAuth } from '../auth/AuthProvider'
 import { useRocketId } from '../auth/useRocketId'
 import { DOC_TYPES, type ProfileForm } from '../profile/schema'
@@ -80,7 +81,7 @@ export function CourseSheet({ course, application, profile, skills, onClose, ini
     setWithdrawing('busy')
     setError(null)
     try {
-      await withdrawApplication(user.uid, c.id)
+      await withdrawApplication(user.uid, c, toTitleCaseName(profile.fullName) || user.displayName || '')
       setWithdrawing(null)
     } catch (e) {
       console.error('withdrawApplication', e)

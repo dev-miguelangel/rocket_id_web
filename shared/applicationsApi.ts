@@ -1,5 +1,6 @@
 import { collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where, writeBatch, type Unsubscribe } from 'firebase/firestore'
 import { db } from './firebase'
+import { newProviderNotificationRef, providerNotificationData } from './providerNotificationsApi'
 import { APPLICATION_STATUSES, type ApplicantSnapshot, type ApplicationStatus, type SharedCertification } from './domain/courses'
 
 /** Postulación vista por el formador (incluye los datos que la persona compartió con consentimiento) */
@@ -8,6 +9,7 @@ export interface ProviderApplication {
   uid: string
   courseId: string
   courseTitle: string
+  providerId: string
   status: ApplicationStatus
   createdAt: Date | null
   reviewedAt: Date | null
@@ -51,6 +53,7 @@ export function parseProviderApplication(id: string, raw: Record<string, unknown
     uid: str(raw.uid),
     courseId: str(raw.courseId),
     courseTitle: str(raw.courseTitle),
+    providerId: str(raw.providerId),
     status: status in APPLICATION_STATUSES ? (status as ApplicationStatus) : 'sent',
     createdAt: date(raw.createdAt),
     reviewedAt: date(raw.reviewedAt),
@@ -79,8 +82,18 @@ export function markApplicationSeen(reviewerUid: string, a: ProviderApplication)
   return updateDoc(doc(db, 'applications', a.id), { status: 'seen', reviewedBy: reviewerUid, reviewedAt: serverTimestamp() })
 }
 
-/** Aceptar o rechazar, con un mensaje opcional; la persona recibe un aviso en la app */
-export async function decideApplication(reviewerUid: string, providerName: string, a: ProviderApplication, status: 'accepted' | 'rejected', note: string) {
+/**
+ * Aceptar o rechazar, con un mensaje opcional. La persona recibe un aviso en la app,
+ * y el resto del equipo ve la decisión en sus avisos de formador.
+ */
+export async function decideApplication(
+  reviewerUid: string,
+  providerName: string,
+  a: ProviderApplication,
+  status: 'accepted' | 'rejected',
+  note: string,
+  reviewerName = '',
+) {
   const text = note.trim().slice(0, 500)
   const b = writeBatch(db)
   b.update(doc(db, 'applications', a.id), {
@@ -99,6 +112,15 @@ export async function decideApplication(reviewerUid: string, providerName: strin
     read: false,
     createdAt: serverTimestamp(),
   })
+  if (a.providerId)
+    b.set(
+      newProviderNotificationRef(a.providerId),
+      providerNotificationData(
+        status === 'accepted' ? 'application_accepted' : 'application_rejected',
+        { applicationId: a.id, courseId: a.courseId, courseTitle: a.courseTitle, personName: a.applicant.fullName },
+        { uid: reviewerUid, name: reviewerName || providerName },
+      ),
+    )
   await b.commit()
 }
 

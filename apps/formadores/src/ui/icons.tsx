@@ -60,3 +60,9 @@ export const PhoneIcon = (p: P) => (
     <path d="M11 18.5h2" />
   </Icon>
 )
+export const BellIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9z" />
+    <path d="M10 19a2 2 0 0 0 4 0" />
+  </Icon>
+)

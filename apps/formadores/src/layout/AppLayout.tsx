@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
+import { NotificationsBell } from '../notifications/NotificationsBell'
 import { useMyProviders } from '../providers/MyProviders'
 import { BadgeIcon, BookIcon, HomeIcon, InboxIcon, LogoutIcon, TeamIcon } from '../ui/icons'
 import { Logo } from '../ui/Logo'
@@ -80,10 +81,11 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
-          <header className="border-b border-line px-6 py-5 lg:px-10">
+          <header className="flex items-center justify-between gap-4 border-b border-line px-6 py-4 lg:px-10">
             <h1 className="text-2xl font-bold tracking-tight text-fg">
               {current?.label ?? (/^\/(registro|solicitud)\//.test(pathname) ? 'Solicitud de formador' : 'rocketId Formadores')}
             </h1>
+            <NotificationsBell />
           </header>
           <main className="flex-1 px-6 py-8 lg:px-10">
             <div className="mx-auto max-w-5xl">

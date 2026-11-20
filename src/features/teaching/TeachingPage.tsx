@@ -234,7 +234,7 @@ function ApplicationSheet({
     setBusy(true)
     setFailed(false)
     try {
-      await decideApplication(user.uid, providerName, a, deciding, note)
+      await decideApplication(user.uid, providerName, a, deciding, note, user.displayName ?? '')
       onDone(deciding === 'accepted' ? 'Postulación aceptada' : 'Postulación rechazada')
     } catch (e) {
       console.error('decide', e)

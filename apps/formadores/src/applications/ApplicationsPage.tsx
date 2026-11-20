@@ -22,9 +22,9 @@ const FILTERS: { value: Filter; label: string }[] = [
 const short = (d: Date | null) => (d ? d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }) : '—')
 
 export function ApplicationsPage() {
-  const cp = useCourseProvider()
-  const { user } = useAuth()
   const [params, setParams] = useSearchParams()
+  const cp = useCourseProvider({ prefer: params.get('f') })
+  const { user } = useAuth()
   const pid = cp.current?.provider.id ?? null
   // Responsables y coordinación ven todas; un instructor, solo las de sus cursos asignados
   const canSee = !!cp.current && (cp.current.role === 'owner' || cp.current.role === 'manager')
@@ -232,7 +232,7 @@ function ApplicationDetail({ a, providerName, canDecide }: { a: ProviderApplicat
     setBusy(true)
     setMsg(null)
     try {
-      await decideApplication(user.uid, providerName, a, deciding, note)
+      await decideApplication(user.uid, providerName, a, deciding, note, user.displayName ?? '')
       setMsg({ ok: true, text: deciding === 'accepted' ? 'Postulación aceptada. Le avisamos en su app.' : 'Postulación rechazada. Le avisamos en su app.' })
       setDeciding(null)
     } catch (e) {
