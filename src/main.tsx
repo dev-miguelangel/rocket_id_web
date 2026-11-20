@@ -22,6 +22,8 @@ import { MyDataPage } from './features/dashboard/MyDataPage'
 
 // Panel de administración: se carga aparte (solo lo usa una cuenta)
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then((m) => ({ default: m.AdminPage })))
+// "Cursos que dictas": solo formadores (se abre desde el menú del avatar)
+const TeachingPage = lazy(() => import('./features/teaching/TeachingPage').then((m) => ({ default: m.TeachingPage })))
 
 const router = createBrowserRouter([
   // Perfil público de deportista: se ve sin sesión, como página independiente
@@ -47,6 +49,14 @@ const router = createBrowserRouter([
           { path: 'perfil/:rocketId', element: <ProfileLinkPage /> },
           { path: 'eventos', element: <EventsPage /> },
           { path: 'e/:eventId', element: <EventDetailPage /> },
+          {
+            path: 'dictas',
+            element: (
+              <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-line/60" />}>
+                <TeachingPage />
+              </Suspense>
+            ),
+          },
           // Administración: solo la cuenta admin (se abre desde el menú del avatar)
           {
             path: 'admin',

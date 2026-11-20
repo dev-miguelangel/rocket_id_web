@@ -75,6 +75,8 @@ export interface Application {
   providerName: string
   status: ApplicationStatus
   createdAt: Date | null
+  /** Mensaje del formador al aceptar o rechazar */
+  providerNote: string
 }
 
 export const applicationId = (uid: string, courseId: string) => `${uid}_${courseId}`

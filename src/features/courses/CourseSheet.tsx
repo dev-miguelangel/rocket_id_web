@@ -21,8 +21,7 @@ interface Props {
   initialStep?: 'detail' | 'consent'
 }
 
-const primaryBtn =
-  'h-12 w-full rounded-xl bg-primary text-base font-semibold text-white transition active:bg-primary-dark disabled:opacity-50'
+const primaryBtn = 'h-12 w-full rounded-xl bg-primary text-base font-semibold text-white transition active:bg-primary-dark disabled:opacity-50'
 
 export function CourseSheet({ course, application, profile, skills, onClose, initialStep = 'detail' }: Props) {
   const { user } = useAuth()
@@ -163,12 +162,16 @@ function Detail({ course: c, application }: { course: Course; application?: Appl
           <div>
             <p className="text-sm font-medium text-fg">Ya postulaste a este curso</p>
             {application.createdAt && (
-              <p className="text-xs text-muted">
-                {application.createdAt.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </p>
+              <p className="text-xs text-muted">{application.createdAt.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
             )}
           </div>
           <ApplicationBadge status={application.status} />
+        </div>
+      )}
+      {application?.providerNote && (application.status === 'accepted' || application.status === 'rejected') && (
+        <div className="rounded-2xl bg-surface p-4 ring-1 ring-line">
+          <p className="text-sm font-semibold text-fg">Mensaje de {c.provider.name}</p>
+          <p className="mt-1 text-base whitespace-pre-line text-fg-soft">{application.providerNote}</p>
         </div>
       )}
 
@@ -176,7 +179,7 @@ function Detail({ course: c, application }: { course: Course; application?: Appl
 
       <dl className="grid grid-cols-2 gap-2">
         <Info label="Fechas" value={formatDateRange(c.startDate, c.endDate)} />
-        <Info label="Duración" value={c.duration} />
+        {c.duration && <Info label="Duración" value={c.duration} />}
         <Info label="Lugar" value={c.location} wide />
         <Info label="Modalidad" value={c.modality[0].toUpperCase() + c.modality.slice(1)} />
         <Info label="Nivel" value={c.level} />
@@ -184,22 +187,31 @@ function Detail({ course: c, application }: { course: Course; application?: Appl
         <Info label="Cupos" value={String(c.spots)} />
       </dl>
 
-      <Block title="Descripción">
-        <p className="max-w-prose text-base leading-relaxed text-fg-soft">{c.description}</p>
-      </Block>
-      <Block title="Requisitos">
-        <ul className="space-y-1.5 text-base text-fg-soft">
-          {c.requirements.map((r) => (
-            <li key={r} className="flex gap-2">
-              <span className="text-primary-text" aria-hidden="true">•</span>
-              {r}
-            </li>
-          ))}
-        </ul>
-      </Block>
-      <Block title="Al aprobar obtienes">
-        <p className="text-base text-fg-soft">🎓 {c.certification}</p>
-      </Block>
+      {/* Campos opcionales en los cursos de formadores: solo se muestran si vienen */}
+      {c.description && (
+        <Block title="Descripción">
+          <p className="max-w-prose text-base leading-relaxed whitespace-pre-line text-fg-soft">{c.description}</p>
+        </Block>
+      )}
+      {c.requirements.length > 0 && (
+        <Block title="Requisitos">
+          <ul className="space-y-1.5 text-base text-fg-soft">
+            {c.requirements.map((r) => (
+              <li key={r} className="flex gap-2">
+                <span className="text-primary-text" aria-hidden="true">
+                  •
+                </span>
+                {r}
+              </li>
+            ))}
+          </ul>
+        </Block>
+      )}
+      {c.certification && (
+        <Block title="Al aprobar obtienes">
+          <p className="text-base text-fg-soft">🎓 {c.certification}</p>
+        </Block>
+      )}
     </>
   )
 }
@@ -255,7 +267,10 @@ function Consent({ provider, rocketId, profile: p, skills, missing, accepted, on
       </div>
 
       {missing.length > 0 && (
-        <div role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+        <div
+          role="alert"
+          className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+        >
           <p className="font-semibold">Completa tus datos para postular</p>
           <p className="mt-1">Faltan: {missing.join(', ')}.</p>
         </div>
@@ -273,9 +288,7 @@ function Consent({ provider, rocketId, profile: p, skills, missing, accepted, on
       </Preview>
       <Preview title="🎓 Conocimientos">
         {certs.length ? (
-          certs.map((c) => (
-            <Row key={c.id} label={[c.issuer, c.year, statusOf(c.status)?.label].filter(Boolean).join(' · ')} value={c.name} />
-          ))
+          certs.map((c) => <Row key={c.id} label={[c.issuer, c.year, statusOf(c.status)?.label].filter(Boolean).join(' · ')} value={c.name} />)
         ) : (
           <Row label="Certificaciones" value={skills.hasCertifications === 'no' ? 'No declara' : ''} />
         )}
@@ -323,7 +336,9 @@ function Row({ label, value, nowrap }: { label: string; value: string; nowrap?: 
   return (
     <div className="px-4 py-2.5">
       <p className="text-xs text-muted">{label}</p>
-      <p className={`text-sm ${nowrap ? 'font-mono whitespace-nowrap' : 'break-words'} ${value ? 'text-fg' : 'text-subtle italic'}`}>{value || 'Sin informar'}</p>
+      <p className={`text-sm ${nowrap ? 'font-mono whitespace-nowrap' : 'break-words'} ${value ? 'text-fg' : 'text-subtle italic'}`}>
+        {value || 'Sin informar'}
+      </p>
     </div>
   )
 }
@@ -343,17 +358,21 @@ function Sent({ provider }: { provider: string }) {
 
       <div className="mt-6 w-full space-y-3 text-left">
         <div className="flex gap-3 rounded-2xl border border-line bg-card p-4">
-          <span className="text-xl" aria-hidden="true">📬</span>
+          <span className="text-xl" aria-hidden="true">
+            📬
+          </span>
           <p className="text-base text-fg-soft">
-            La institución tomará contacto contigo <strong>directamente por sus canales preferentes</strong> (correo, teléfono o
-            WhatsApp). rocketId no gestiona esta comunicación.
+            La institución tomará contacto contigo <strong>directamente por sus canales preferentes</strong> (correo, teléfono o WhatsApp). rocketId no gestiona
+            esta comunicación.
           </p>
         </div>
         <div className="flex gap-3 rounded-2xl border border-line bg-card p-4">
-          <span className="text-xl" aria-hidden="true">🔔</span>
+          <span className="text-xl" aria-hidden="true">
+            🔔
+          </span>
           <p className="text-base text-fg-soft">
-            Revisa el estado en <strong>Cursos → Mis postulaciones</strong>. Más adelante la institución podrá marcarla como{' '}
-            <em>vista</em>, <em>aceptada</em> o <em>rechazada</em>.
+            Revisa el estado en <strong>Cursos → Mis postulaciones</strong>. Más adelante la institución podrá marcarla como <em>vista</em>, <em>aceptada</em> o{' '}
+            <em>rechazada</em>.
           </p>
         </div>
       </div>

@@ -114,6 +114,15 @@ service cloud.firestore {
               && isConfirmedParticipant(request.resource.data.eventId)
               && inEmergencyWindow(request.resource.data.eventId)
               && exists(participantPath(request.resource.data.eventId, uid)))
+            // Formador → persona que postuló: aceptó o rechazó su postulación (eventId = id del curso)
+            || (request.resource.data.type in ['application_accepted', 'application_rejected']
+              && existsAfter(applicationPath(uid + '_' + request.resource.data.eventId))
+              && getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.uid == uid
+              && getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.status
+                == (request.resource.data.type == 'application_accepted' ? 'accepted' : 'rejected')
+              && canManageApplications(getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.providerId)
+              && request.resource.data.actorName
+                == get(providerPath(getAfter(applicationPath(uid + '_' + request.resource.data.eventId)).data.providerId)).data.name)
             // …y alerta al organizador y al equipo de seguridad
             || (request.resource.data.type == 'emergency_alert'
               && isConfirmedParticipant(request.resource.data.eventId)
@@ -626,7 +635,9 @@ service cloud.firestore {
     match /courses/{cid} {
       allow get: if (request.auth != null && resource.data.status == 'published')
         || isAdmin()
-        || isProviderMember(resource.data.providerId);
+        || isProviderMember(resource.data.providerId)
+        // Quien postuló sigue viendo el curso aunque se cierre
+        || (request.auth != null && exists(applicationPath(request.auth.uid + '_' + cid)));
       // Catálogo: consulta con where status == 'published'. El formador: where providerId == su formador.
       allow list: if (request.auth != null && resource.data.status == 'published')
         || isAdmin()
@@ -651,16 +662,46 @@ service cloud.firestore {
     }
 
     // Postulaciones a cursos: applications/{uid}_{courseId}
-    // La persona crea (una sola vez por curso) y lee las suyas. No puede editarlas ni borrarlas:
-    // el estado (sent → seen → accepted/rejected) lo cambiará la institución desde su app.
+    // La persona crea (una sola vez por curso) y lee las suyas. No puede editarlas ni borrarlas.
+    // Cursos reales: la postulación lleva el providerId del curso publicado; el formador la ve y
+    // cambia su estado (sent → seen → accepted/rejected). Cursos de demostración (demo-*): sin formador.
+    function coursePath(cid) {
+      return /databases/$(database)/documents/courses/$(cid);
+    }
+    function applicationPath(aid) {
+      return /databases/$(database)/documents/applications/$(aid);
+    }
+    // Responsables y coordinación del formador (los instructores, cuando existan equipos)
+    function canSeeApplications(pid) {
+      return request.auth != null
+        && pid is string
+        && exists(memberPath(pid, request.auth.uid))
+        && get(memberPath(pid, request.auth.uid)).data.role in ['owner', 'manager'];
+    }
+    function canManageApplications(pid) {
+      return canSeeApplications(pid) && get(providerPath(pid)).data.status == 'approved';
+    }
+    function applicationCourseOk(d) {
+      return ('providerId' in d)
+        ? (exists(coursePath(d.courseId))
+            && get(coursePath(d.courseId)).data.status == 'published'
+            && get(coursePath(d.courseId)).data.providerId == d.providerId
+            && get(coursePath(d.courseId)).data.title == d.courseTitle
+            && get(coursePath(d.courseId)).data.providerName == d.providerName
+            && get(providerPath(d.providerId)).data.status == 'approved')
+        : d.courseId.matches('^demo-.*');
+    }
+
     match /applications/{appId} {
       allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      // Formador: consulta con where providerId == su formador
+      allow read: if canSeeApplications(resource.data.providerId);
       allow list: if isAdmin();
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && appId == request.auth.uid + '_' + request.resource.data.courseId
         && request.resource.data.keys().hasOnly(
-          ['uid', 'courseId', 'courseTitle', 'providerName', 'status', 'createdAt', 'consent', 'applicant'])
+          ['uid', 'courseId', 'courseTitle', 'providerId', 'providerName', 'status', 'createdAt', 'consent', 'applicant'])
         && request.resource.data.status == 'sent'
         && request.resource.data.createdAt == request.time
         && request.resource.data.consent.keys().hasOnly(['version', 'acceptedAt'])
@@ -668,8 +709,17 @@ service cloud.firestore {
         && request.resource.data.courseId is string && request.resource.data.courseId.size() <= 100
         && request.resource.data.applicant is map
         && request.resource.data.applicant.certifications is list
-        && request.resource.data.applicant.certifications.size() <= 20;
-      allow update, delete: if false;
+        && request.resource.data.applicant.certifications.size() <= 20
+        && applicationCourseOk(request.resource.data);
+      // Formador: solo el estado y un mensaje para la persona; nunca sus datos
+      allow update: if canManageApplications(resource.data.providerId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'providerNote', 'reviewedAt', 'reviewedBy'])
+        && request.resource.data.status in ['seen', 'accepted', 'rejected']
+        && (!('providerNote' in request.resource.data)
+          || (request.resource.data.providerNote is string && request.resource.data.providerNote.size() <= 500))
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time;
+      allow delete: if false;
     }
 
     // Todo lo demás denegado por defecto

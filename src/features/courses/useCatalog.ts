@@ -1,5 +1,6 @@
-import { doc, onSnapshot } from 'firebase/firestore'
-import { useSyncExternalStore } from 'react'
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { parseCourse } from '../../../shared/domain/courses'
 import { subscribePublishedCourses } from '../../../shared/coursesApi'
 import { db } from '../../lib/firebase'
 import { MOCK_COURSES } from './mockCourses'
@@ -51,3 +52,34 @@ function subscribe(cb: () => void) {
 }
 
 export const useCatalog = (): Course[] => useSyncExternalStore(subscribe, () => snapshot)
+
+/**
+ * Cursos a los que la persona postuló y que ya no están en el catálogo (por ejemplo, porque se cerraron).
+ * Las reglas permiten leer un curso a quien tiene una postulación a él.
+ */
+const appliedCache = new Map<string, Course | null>()
+
+export function useAppliedCourses(courseIds: string[], catalog: Course[]): Course[] {
+  const inCatalog = new Set(catalog.map((c) => c.id))
+  const missing = courseIds.filter((id) => !inCatalog.has(id) && !id.startsWith('demo-'))
+  const key = [...new Set(missing)].sort().join(',')
+  const [, bump] = useState(0)
+
+  useEffect(() => {
+    if (!key) return
+    let alive = true
+    const todo = key.split(',').filter((id) => !appliedCache.has(id))
+    Promise.all(
+      todo.map((id) =>
+        getDoc(doc(db, 'courses', id))
+          .then((s) => appliedCache.set(id, s.exists() ? parseCourse(s.id, s.data()) : null))
+          .catch(() => appliedCache.set(id, null)),
+      ),
+    ).then(() => alive && todo.length && bump((n) => n + 1))
+    return () => {
+      alive = false
+    }
+  }, [key])
+
+  return key ? key.split(',').map((id) => appliedCache.get(id)).filter((c): c is Course => !!c) : []
+}

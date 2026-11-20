@@ -12,6 +12,7 @@ import { useRocketId } from '../auth/useRocketId'
 import { useTheme, type ThemePreference } from '../../lib/theme'
 import { useAuth } from '../auth/AuthProvider'
 import { useIsAdmin } from '../admin/useIsAdmin'
+import { useTeachingProviders } from '../teaching/useTeaching'
 
 const tabs = [
   { to: '/', label: 'Inicio', icon: HomeIcon, end: true },
@@ -35,7 +36,7 @@ export function DashboardLayout() {
     <div className="flex min-h-dvh flex-col bg-surface">
       <header className="pt-safe sticky top-0 z-20 border-b border-line/70 bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/perfil/') ? 'Perfil' : pathname.startsWith('/e/') ? 'Evento' : pathname === '/admin' ? 'Administración' : 'rocketId')}</h1>
+          <h1 className="text-lg font-bold text-fg">{title ?? (pathname.startsWith('/perfil/') ? 'Perfil' : pathname.startsWith('/e/') ? 'Evento' : pathname === '/admin' ? 'Administración' : pathname === '/dictas' ? 'Cursos que dictas' : 'rocketId')}</h1>
           <div className="flex items-center gap-1">
             <NotificationsButton />
             <UserMenu />
@@ -92,6 +93,7 @@ function UserMenu() {
   const [open, setOpen] = useState(false)
   const [sheet, setSheet] = useState<'share' | 'privacy' | null>(null)
   const isAdmin = useIsAdmin()
+  const teaching = useTeachingProviders()
   const navigate = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const closeSheet = useCallback(() => setSheet(null), [])
@@ -143,6 +145,18 @@ function UserMenu() {
               }}
             />
           </div>
+          {!!teaching?.length && (
+            <div className="border-t border-line py-1">
+              <MenuItem
+                icon={<span className="text-lg leading-none">🎓</span>}
+                label="Cursos que dictas"
+                onClick={() => {
+                  setOpen(false)
+                  navigate('/dictas')
+                }}
+              />
+            </div>
+          )}
           {isAdmin && (
             <div className="border-t border-line py-1">
               <MenuItem

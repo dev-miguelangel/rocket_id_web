@@ -27,6 +27,8 @@ const TYPES: NotificationType[] = [
   'co_organizer_added',
   'emergency_access',
   'emergency_alert',
+  'application_accepted',
+  'application_rejected',
 ]
 
 const col = (uid: string) => collection(db, 'users', uid, 'notifications')

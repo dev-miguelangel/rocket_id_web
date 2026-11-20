@@ -9,7 +9,7 @@ import { SKILL_CATEGORIES, categoryOf, emptySkills, type CategoryId, type Skills
 import { subscribeSkills } from '../skills/skillsApi'
 import { subscribeMyApplications } from './applicationsApi'
 import { CourseSheet } from './CourseSheet'
-import { useCatalog } from './useCatalog'
+import { useAppliedCourses, useCatalog } from './useCatalog'
 import { ApplicationBadge, ProviderLine } from './parts'
 import { formatDateRange, formatPrice, type Application, type Course } from './schema'
 
@@ -23,16 +23,6 @@ export function CoursesPage() {
   const MOCK_COURSES = useCatalog()
   // Abre directamente un curso recomendado: /cursos?curso=ID
   const [selected, setSelected] = useState<Course | null>(() => MOCK_COURSES.find((c) => c.id === params.get('curso')) ?? null)
-  // Los cursos de Firestore llegan después del primer render: abre el del enlace cuando aparezca
-  const wanted = params.get('curso')
-  const [pendingOpen, setPendingOpen] = useState(!selected && !!wanted)
-  if (pendingOpen && wanted) {
-    const found = MOCK_COURSES.find((c) => c.id === wanted)
-    if (found) {
-      setPendingOpen(false)
-      setSelected(found)
-    }
-  }
   const [startStep, setStartStep] = useState<'detail' | 'consent'>('detail')
   const open = (c: Course, step: 'detail' | 'consent' = 'detail') => {
     setStartStep(step)
@@ -59,11 +49,23 @@ export function CoursesPage() {
   const appByCourse = useMemo(() => new Map((apps ?? []).map((a) => [a.courseId, a])), [apps])
   const usedCategories = SKILL_CATEGORIES.filter((c) => MOCK_COURSES.some((m) => m.category === c.id))
 
+  // Cursos ya cerrados a los que postuló: siguen en "Mis postulaciones"
+  const applied = useAppliedCourses(useMemo(() => (apps ?? []).map((a) => a.courseId), [apps]), MOCK_COURSES)
+  // Los cursos de Firestore llegan después del primer render: abre el del enlace cuando aparezca
+  const wanted = params.get('curso')
+  const [pendingOpen, setPendingOpen] = useState(!selected && !!wanted)
+  if (pendingOpen && wanted) {
+    const found = [...MOCK_COURSES, ...applied].find((c) => c.id === wanted)
+    if (found) {
+      setPendingOpen(false)
+      setSelected(found)
+    }
+  }
   const courses = useMemo(() => {
-    const base = tab === 'mine' ? MOCK_COURSES.filter((c) => appByCourse.has(c.id)) : MOCK_COURSES
+    const base = tab === 'mine' ? [...MOCK_COURSES, ...applied].filter((c) => appByCourse.has(c.id)) : MOCK_COURSES
     const filtered = filter === 'all' ? base : base.filter((c) => c.category === filter)
     return [...filtered].sort((a, b) => a.startDate.localeCompare(b.startDate))
-  }, [tab, filter, appByCourse, MOCK_COURSES])
+  }, [tab, filter, appByCourse, MOCK_COURSES, applied])
 
   const close = useCallback(() => {
     setSelected(null)

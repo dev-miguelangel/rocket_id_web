@@ -68,6 +68,19 @@ const T: Record<NotificationType, { icon: string; tone: string; text: (n: AppNot
     text: (n) => `${n.actorName} guardó tu ficha de emergencia para usarla sin señal en “${n.eventTitle}”`,
     context: 'Solo la abrirá en una emergencia; te avisaremos si la ve. Se borra 2 días después del evento',
   },
+  // Postulaciones a cursos (eventId = id del curso, eventTitle = nombre del curso, actorName = formador)
+  application_accepted: {
+    icon: '🎉',
+    tone: 'bg-emerald-100 dark:bg-emerald-500/15',
+    text: (n) => `${n.actorName} aceptó tu postulación a “${n.eventTitle}”`,
+    context: 'Toca para ver el curso',
+  },
+  application_rejected: {
+    icon: '📋',
+    tone: 'bg-zinc-200 dark:bg-zinc-500/20',
+    text: (n) => `${n.actorName} no aceptó tu postulación a “${n.eventTitle}”`,
+    context: 'Toca para ver el curso',
+  },
   sensitive_view: {
     icon: '👁️',
     tone: 'bg-violet-100 dark:bg-violet-500/15',
@@ -110,7 +123,7 @@ export function NotificationsSheet({ open, onClose, items }: { open: boolean; on
     if (!user) return
     if (!n.read) markRead(user.uid, n.id).catch(() => {})
     onClose()
-    navigate(`/e/${n.eventId}`)
+    navigate(n.type.startsWith('application_') ? `/cursos?curso=${encodeURIComponent(n.eventId)}` : `/e/${n.eventId}`)
   }
 
   return (
@@ -135,7 +148,8 @@ export function NotificationsSheet({ open, onClose, items }: { open: boolean; on
           <p className="text-4xl" aria-hidden="true">🔔</p>
           <p className="mt-3 font-semibold text-fg">Sin notificaciones</p>
           <p className="mt-1 text-sm text-muted">
-            Aquí verás invitaciones a eventos, cambios, quién confirmó o no podrá ir, y cuándo un organizador ve tu ficha de emergencia.
+            Aquí verás invitaciones a eventos, cambios, quién confirmó o no podrá ir, cuándo un organizador ve tu ficha de emergencia y las
+            respuestas a tus postulaciones.
           </p>
         </div>
       ) : (

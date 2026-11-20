@@ -31,6 +31,7 @@ export function subscribeMyApplications(uid: string, cb: (apps: Application[]) =
             providerName: String(v.providerName ?? ''),
             status,
             createdAt: typeof v.createdAt?.toDate === 'function' ? v.createdAt.toDate() : null,
+            providerNote: typeof v.providerNote === 'string' ? v.providerNote : '',
           }
         }),
       ),
@@ -77,6 +78,8 @@ export function submitApplication(uid: string, course: Course, applicant: Applic
     uid,
     courseId: course.id,
     courseTitle: course.title,
+    // Cursos de formadores: las reglas exigen que coincida con el curso publicado
+    ...(course.providerId ? { providerId: course.providerId } : {}),
     providerName: course.provider.name,
     status: 'sent',
     createdAt: serverTimestamp(),

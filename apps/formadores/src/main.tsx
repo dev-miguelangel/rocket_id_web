@@ -5,12 +5,13 @@ import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { LoginPage } from './auth/LoginPage'
 import { AppLayout } from './layout/AppLayout'
 import { HomePage } from './pages/HomePage'
+import { ApplicationsPage } from './applications/ApplicationsPage'
 import { CourseEditorPage } from './courses/CourseEditorPage'
 import { CoursesPage } from './courses/CoursesPage'
 import { MyProvidersProvider } from './providers/MyProviders'
 import { ProviderFormPage } from './providers/ProviderFormPage'
 import { SoonPage } from './pages/SoonPage'
-import { BadgeIcon, InboxIcon, TeamIcon } from './ui/icons'
+import { BadgeIcon, TeamIcon } from './ui/icons'
 import { UpdatePrompt } from './ui/UpdatePrompt'
 import './index.css'
 
@@ -48,10 +49,7 @@ const router = createBrowserRouter([
       { path: 'cursos', element: <CoursesPage /> },
       { path: 'cursos/nuevo', element: <CourseEditorPage /> },
       { path: 'cursos/:id', element: <CourseEditorPage /> },
-      {
-        path: 'postulaciones',
-        element: <SoonPage icon={InboxIcon} title="Postulaciones" text="Revisa quién postula a cada curso, con los datos que compartió, y acepta o rechaza." />,
-      },
+      { path: 'postulaciones', element: <ApplicationsPage /> },
       {
         path: 'verificaciones',
         element: (

@@ -89,6 +89,8 @@ export type NotificationType =
   | 'co_organizer_added'
   | 'emergency_access'
   | 'emergency_alert'
+  | 'application_accepted'
+  | 'application_rejected'
 
 type Actor = { uid: string; displayName: string }
 
